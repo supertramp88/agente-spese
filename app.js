@@ -510,6 +510,7 @@ function anteprimaLocale(p) {
 function ridisegna() {
   if (S.vista === 'home') renderHome();
   else if (S.vista === 'movimenti') caricaMovimenti();
+  else if (S.vista === 'budget' && !(S.bud && S.bud.aperto)) renderBudget();   // non mentre si modifica un budget
 }
 async function annullaSalvataggio(id) {
   try { const r = await chiama('eliminaMovimento', id); S.avvio = r.avvio; indicizza(); datiModificati(); vai(S.vista === 'form' ? 'home' : S.vista); toast('Inserimento annullato'); }

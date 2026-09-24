@@ -10,6 +10,20 @@ async function unaVolta(fn) {
 function meterHtml(pct, over, tick, etichetta) {
   return `<div class="meter" role="img" aria-label="${esc(etichetta)}"><div class="fill${over ? ' over' : ''}" style="width:${Math.max(0, Math.min(100, pct))}%;"></div>${tick == null ? '' : `<div class="tick" style="left:${Math.max(0, Math.min(100, tick))}%;"></div>`}</div>`;
 }
+/** Budget della categoria dal mese prossimo, se diverso da quello attuale (null se non cambia). */
+function budgetProssimo(id, periodicita, importo) {
+  const p = S.avvio.budget && S.avvio.budget.prossimo;
+  if (!p || !p.voci) return null;
+  const n = p.voci[id] || { periodicita: 'MENSILE', importo: 0 };
+  if (Number(n.importo) === Number(importo || 0) && (n.periodicita === periodicita || !n.importo)) return null;
+  return Object.assign({ mese: p.mese }, n);
+}
+function prossimoHtml(id, periodicita, importo) {
+  const n = budgetProssimo(id, periodicita, importo);
+  if (!n) return '';
+  const valore = n.importo ? `${euroTondo(n.importo)} ${n.periodicita === 'ANNUALE' ? `/ anno (${euroTondo(n.importo / 12)}/mese)` : '/ mese'}` : 'nessun budget';
+  return `<span class="small strong" style="color:var(--acc);">Da ${MESI[n.mese - 1]}: ${valore}</span>`;
+}
 function rigaBudget(r, conModifica) {
   const annuale = r.periodicita === 'ANNUALE';
   const pct = r.importo ? Math.round(r.speso / r.importo * 100) : 0;
@@ -25,6 +39,7 @@ function rigaBudget(r, conModifica) {
 ${meterHtml(pct, r.sopra, tick, `${r.nome}: speso ${pct}% del budget ${annuale ? 'annuale' : 'mensile'}`)}
 <div style="display:flex;justify-content:${conModifica ? 'space-between' : 'flex-end'};align-items:center;">
 ${conModifica ? `<button type="button" class="link" data-azione="bud-modifica" data-v="${r.id}" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;">Modifica</button>` : ''}${stato}</div>
+${conModifica ? prossimoHtml(r.id, r.periodicita, r.importo) : ''}
 </div>`;
 }
 function barreHtml(voci, totale, scala) {
@@ -216,19 +231,23 @@ function renderBudget() {
 <section class="card"><span class="label">Budget totale</span>
 <div style="display:flex;align-items:baseline;gap:8px;"><span class="hero num">${euroTondo(b.totale)}</span><span class="label">al mese</span></div>
 ${sommaBudgetHtml(b)}
+${prossimoHtml('*', b.totalePeriodicita, b.totaleImporto)}
 <button type="button" class="link" data-azione="bud-modifica" data-v="*" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;text-align:left;">Modifica il budget totale</button>
 ${bud.aperto === '*' ? editorBudget('*', b.totalePeriodicita, b.totaleImporto) : ''}</section>
-${mensili.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Mensili</h2><span class="small">${esc(MESI[b.mese - 1])}</span></div>${mensili.map(riga).join('')}</section>` : ''}
-${annuali.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Annuali</h2><span class="small">da gennaio · tacca = quota a oggi</span></div>${annuali.map(riga).join('')}</section>` : ''}
+${mensili.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Budget mensili</h2><span class="small">${esc(MESI[b.mese - 1])}</span></div>${mensili.map(riga).join('')}</section>` : ''}
+${annuali.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Budget annuali</h2><span class="small">da gennaio · tacca = quota a oggi</span></div>${annuali.map(riga).join('')}</section>` : ''}
 ${b.senza.length ? `<section class="card" style="gap:0;"><h2 class="h2" style="padding-bottom:4px;">Senza budget</h2>
 ${b.senza.map(c => `<div class="row"><span class="badge" style="width:32px;height:32px;border-radius:9px;">${ic(ICONA_MACRO[c.id] || 'tag', 18)}</span>
-<span class="grow"><span style="display:block;font-weight:500;">${esc(c.nome)}</span><span class="small">${euroTondo(c.speso)} nel mese · ${euroTondo(c.spesoAnno)} da gennaio</span></span>
+<span class="grow"><span style="display:block;font-weight:500;">${esc(c.nome)}</span><span class="small">${euroTondo(c.speso)} nel mese · ${euroTondo(c.spesoAnno)} da gennaio</span>${prossimoHtml(c.id, 'MENSILE', 0) ? `<span style="display:block;">${prossimoHtml(c.id, 'MENSILE', 0)}</span>` : ''}</span>
 <button type="button" class="link" data-azione="bud-modifica" data-v="${c.id}" style="border:0;background:transparent;cursor:pointer;min-height:40px;">Imposta</button></div>
 ${bud.aperto === c.id ? editorBudget(c.id, 'MENSILE', 0) : ''}`).join('')}</section>` : ''}
 </main>`;
 }
 function editorBudget(id, periodicita, importo) {
   const b = S.avvio.budget, bud = S.bud;
+  // se dal mese prossimo c'è già un valore diverso, si parte da quello (è il più recente)
+  const n = budgetProssimo(id, periodicita, importo);
+  if (n) { importo = n.importo; if (n.importo) periodicita = n.periodicita; }
   if (bud.editPer === undefined || bud.editId !== id) { bud.editId = id; bud.editPer = periodicita || 'MENSILE'; }
   const questo = `${b.anno}-${String(b.mese).padStart(2, '0')}`;
   const pross = new Date(b.anno, b.mese, 1);
@@ -241,8 +260,8 @@ function editorBudget(id, periodicita, importo) {
 <button type="button" class="${bud.editPer === 'ANNUALE' ? 'on' : ''}" data-azione="bud-per" data-v="ANNUALE">Annuale</button></div>
 <div class="field"><label class="label" for="budDal">Valido dal</label>
 <select id="budDal" class="input"><option value="${questo}">${maiusc(MESI[b.mese - 1])} ${b.anno} (questo mese)</option>
-<option value="${prossimo}">${maiusc(MESI[pross.getMonth()])} ${pross.getFullYear()} (dal prossimo mese)</option></select></div>
-<span class="small">I mesi precedenti restano confrontati con il budget di allora.</span>
+<option value="${prossimo}"${n ? ' selected' : ''}>${maiusc(MESI[pross.getMonth()])} ${pross.getFullYear()} (dal prossimo mese)</option></select></div>
+<span class="small">${n ? `Precompilato con il valore già impostato da ${MESI[n.mese - 1]}. ` : ''}I mesi precedenti restano confrontati con il budget di allora.</span>
 <div style="display:flex;gap:8px;"><button type="button" class="btn sec" style="min-height:44px;" data-azione="bud-chiudi">Annulla</button>
 <button type="button" class="btn" style="min-height:44px;" data-azione="bud-salva" data-v="${id}">Salva</button></div></div>`;
 }
