@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Agente $$</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#F5F3EE">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Agente $$">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icone/icona-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icone/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="stile.css">
+</head>
+<body>
+  <div class="app">
+    <div id="vista" class="vista">
+      <div class="vuoto"><span class="attesa">Caricamento</span></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Navigazione principale"></nav>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <input type="file" id="foto" accept="image/*" capture="environment" aria-label="Foto dello scontrino">
+  </div>
+  <script src="api.js"></script>
+  <script src="app.js"></script>
+  <script src="viste.js"></script>
+  <script>
+    // App installabile: il guscio (questi file) resta sul dispositivo e si aggiorna da solo
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      const ricarica = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (ricarica && S.vista !== 'form') location.reload(); });
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
