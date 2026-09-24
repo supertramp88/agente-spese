@@ -4,8 +4,14 @@
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const euro = n => Number(n || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
-const euroTondo = n => Number(n || 0).toLocaleString('it-IT', { maximumFractionDigits: 0 }) + ' €';
+/** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
+function numero(n, decimali) {
+  const v = Number(n || 0), [intera, dec] = Math.abs(v).toFixed(decimali).split('.');
+  const segno = v < 0 && Number(Math.abs(v).toFixed(decimali)) !== 0 ? '-' : '';
+  return segno + intera.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (dec ? ',' + dec : '');
+}
+const euro = n => numero(n, 2) + '\u00a0€';
+const euroTondo = n => numero(n, 0) + '\u00a0€';
 const sec = ms => (ms / 1000).toLocaleString('it-IT', { maximumFractionDigits: 1 }) + ' s';
 const pausa = ms => new Promise(r => setTimeout(r, ms));
 const GIORNI = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
@@ -50,7 +56,7 @@ function recupera(chiave, fn, ...args) {
   return m.inCorso;
 }
 function datiModificati() { S.versione++; }
-const importoTesto = n => Number(n).toFixed(2).replace('.', ',');
+const importoTesto = n => numero(n, 2);
 
 function dataIso(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function daIso(s) { const [a, m, g] = s.split('-').map(Number); return new Date(a, m - 1, g); }
@@ -72,6 +78,7 @@ function breveGiorno(iso) {
 function leggiImporto(testo) {
   let t = String(testo || '').trim().replace(/[€\s]/g, '');
   if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');   // "1.500" = millecinquecento
   const n = Number(t);
   return isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 }
