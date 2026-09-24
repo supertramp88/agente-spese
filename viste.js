@@ -144,6 +144,15 @@ async function caricaAnalisi() {
     a.dati = d; renderAnalisiCorpo();
   } catch (e) { errore(e); }
 }
+/** Barra con angoli superiori arrotondati; se supera il budget (yb), la parte sopra la linea è rossa. */
+function barraMese(x, bw, base, ty, r, yb, colore) {
+  const cima = (da, fill) => {
+    const rr = Math.min(r, Math.max(0, da - ty));   // una punta rossa bassa non deve "bucare" sotto la linea
+    return `<path d="M${x},${da} V${ty + rr} Q${x},${ty} ${x + rr},${ty} H${x + bw - rr} Q${x + bw},${ty} ${x + bw},${ty + rr} V${da} Z" style="fill:${fill}"/>`;
+  };
+  if (yb == null) return cima(base, colore);
+  return `<path d="M${x},${base} V${yb} H${x + bw} V${base} Z" style="fill:${colore}"/>${cima(yb, 'var(--ko)')}`;
+}
 function graficoMesi(mesi, budget, corrente) {
   const w = 358, h = 196, top = 24, base = 164, asse = 30, passo = (w - asse) / 12, bw = 18;
   const max = Math.max(budget || 0, ...mesi.map(m => m.valore)) * 1.12 || 1;
@@ -160,7 +169,7 @@ function graficoMesi(mesi, budget, corrente) {
     const colore = ultimo && corrente ? 'var(--barLeggera)' : 'var(--acc)';
     svg += `<g data-azione="an-apri-mese" data-a="${m.anno}" data-m="${m.mese}" style="cursor:pointer;"><title>${maiusc(MESI[m.mese - 1])} ${m.anno}: ${euro(m.valore)}</title>
 <rect x="${i * passo}" y="${top}" width="${passo}" height="${base - top + 20}" fill="transparent"/>
-${alt > 0 ? `<path d="M${x},${base} V${ty + r} Q${x},${ty} ${x + r},${ty} H${x + bw - r} Q${x + bw},${ty} ${x + bw},${ty + r} V${base} Z" style="fill:${colore}"/>` : ''}
+${alt > 0 ? barraMese(x, bw, base, ty, r, budget && m.valore > budget ? y(budget) : null, colore) : ''}
 <text x="${x + bw / 2}" y="${base + 16}" text-anchor="middle" font-size="11" style="fill:${i === mesi.length - 1 ? 'var(--tx)' : 'var(--tx2)'}" font-weight="${i === mesi.length - 1 ? 600 : 400}">${MESI[m.mese - 1].charAt(0).toUpperCase()}</text></g>`;
   });
   if (budget) svg += `<line x1="0" x2="${w - asse}" y1="${y(budget)}" y2="${y(budget)}" style="stroke:var(--tx)" stroke-width="1.5" stroke-dasharray="4 4"/><text x="${w}" y="${y(budget) + 4}" text-anchor="end" font-size="10" style="fill:var(--tx)" font-weight="600">${(budget / 1000).toLocaleString('it-IT', { maximumFractionDigits: 1 })}k</text>`;
@@ -190,11 +199,13 @@ function renderAnalisiCorpo() {
     const m = d.mese_;
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;">
 <section class="card"><span class="label">${esc(maiusc(nomeMese))}${d.corrente ? ` (fino al ${d.giornoLimite})` : ''}</span>
-<span class="hero num">${euroTondo(m.totale)}</span>
+<span class="hero num${m.budget && m.totale > m.budget ? ' ko' : ''}">${euroTondo(m.totale)}</span>
 ${confrontoHtml(m.totale, m.totalePrec, `${MESI[d.mese - 1]} ${d.anno - 1}${d.corrente ? ', stessi giorni' : ''}`)}
-${m.budget ? `<span class="small">Budget del mese ${euroTondo(m.budget)} · ${Math.round(m.totale / m.budget * 100)}% usato</span>` : ''}</section>
+${!m.budget ? '' : m.totale > m.budget
+  ? `<span class="status ko">${ic('alert', 14, 2)} ${euroTondo(m.totale - m.budget)} oltre il budget del mese (${euroTondo(m.budget)}) · ${Math.round(m.totale / m.budget * 100)}% usato</span>`
+  : `<span class="small">Budget del mese ${euroTondo(m.budget)} · ${Math.round(m.totale / m.budget * 100)}% usato</span>`}</section>
 <section class="card"><h2 class="h2">Ultimi 12 mesi</h2>${graficoMesi(d.mesi12, m.budget, d.corrente)}
-<span class="small">Tratteggio = budget mensile${m.budget ? ` (${euroTondo(m.budget)})` : ''} · media ${euroTondo(d.mesi12.reduce((s, x) => s + x.valore, 0) / 12)} al mese · tocca una barra per aprire quel mese</span></section>
+<span class="small">Tratteggio = budget mensile${m.budget ? ` (${euroTondo(m.budget)}); in rosso la parte oltre` : ''} · media ${euroTondo(d.mesi12.reduce((s, x) => s + x.valore, 0) / 12)} al mese · tocca una barra per aprire quel mese</span></section>
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">tocca per il dettaglio</span></div>
 ${categorieHtml(m.perMacro, m.totale, 'mese')}</section>
 ${m.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">Progetti nel mese</h2>${barreHtml(m.perProgetto)}</section>` : ''}
@@ -206,7 +217,7 @@ ${m.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">
       : `<span class="status ok">${ic('check', 14, 2.4)} Sotto la quota del budget (${euroTondo(y.quotaBudget)} a oggi)</span>`) : '';
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;">
 <section class="card"><span class="label">${d.anno} da gennaio${d.corrente ? ' a oggi' : ` a fine ${MESI[d.mese - 1]}`}</span>
-<span class="hero num">${euroTondo(y.totale)}</span>${stato}
+<span class="hero num${y.quotaBudget && y.totale > y.quotaBudget ? ' ko' : ''}">${euroTondo(y.totale)}</span>${stato}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
 <div><span class="label" style="display:block;">Media mensile</span><span class="h2 num">${euroTondo(y.mediaMensile)}</span></div>
@@ -220,15 +231,15 @@ ${y.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">
   }
 }
 
-/** Salvadanaio viaggi: risparmio sul budget totale contro spese dei progetti esclusi dai totali. */
+/** Salvadanaio (viaggi, progetti, DIY…): risparmio sul budget totale contro spese dei progetti esclusi dai totali. */
 function salvadanaioHtml(s, d) {
   if (!s) return '';
   const segno = v => (v > 0 ? '+' : v < 0 ? '−' : '') + euroTondo(Math.abs(v));
   const riga = (t, v, cls, forte) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:15px;${forte ? 'font-weight:700;' : ''}">
 <span>${t}</span><span class="num ${cls || ''}">${v}</span></div>`;
   const fino = d.corrente ? 'a oggi' : `a fine ${MESI[d.mese - 1]}`;
-  return `<section class="card" aria-label="Salvadanaio viaggi" style="gap:10px;">
-<div class="sechead"><h2 class="h2">Salvadanaio viaggi</h2><span class="small">da gennaio ${fino}</span></div>
+  return `<section class="card" aria-label="Salvadanaio" style="gap:10px;">
+<div class="sechead"><h2 class="h2">Salvadanaio <span class="small" style="font-family:inherit;">(viaggi, progetti, DIY…)</span></h2><span class="small">da gennaio ${fino}</span></div>
 ${riga(s.risparmiato >= 0 ? 'Risparmiato sul budget' : 'Speso oltre il budget', segno(s.risparmiato), s.risparmiato >= 0 ? 'ok' : 'ko')}
 ${riga('Viaggi e progetti esclusi', s.viaggi ? '−' + euroTondo(s.viaggi) : euroTondo(0))}
 <div class="divider"></div>
@@ -519,7 +530,7 @@ ${blocco('Progetti', 'folder', [
   'Raccolgono le spese di un viaggio, un veicolo, un lavoro… La categoria resta quella della spesa.',
   '<b>Viaggi: sempre in un progetto</b>, con il suo budget.',
   'Viaggio finito → <b>Chiudi</b>. Spese arrivate dopo: nel modulo, <i>Altri progetti</i>.',
-  '<b>Salvadanaio viaggi</b> (Analisi → Anno): quanto hai risparmiato sul budget meno quanto hai speso in viaggi.',
+  '<b>Salvadanaio</b> (Analisi → Anno): quanto hai risparmiato sul budget meno quanto hai speso in viaggi e progetti esclusi.',
 ], `<b>Nota su viaggi e progetti.</b> Di default le loro spese <b>non pesano</b> sul budget mensile (${totale}), sulla Home e sui report: le vedi solo nel progetto. Per farle contare, nel progetto disattiva <i>Escludi dai totali personali</i>.`)}
 ${blocco('Budget', 'chart', [
   `<b>Totale ${totale}/mese</b> per le spese personali (viaggi esclusi).`,
