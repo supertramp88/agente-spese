@@ -411,10 +411,17 @@ ${f.tutte ? `<div class="card" style="gap:14px;margin-top:4px;">${macro.map(m =>
 ${f.dataScelta === 'altra' ? `<input id="fDataAltra" class="input${f.letti.data === 'dubbio' ? ' dubbio' : ''}" type="date" aria-label="Data del movimento" value="${esc(f.data)}" max="${esc(S.avvio.oggi)}">` : ''}`;
   } else if (nome === 'Progetto') {
     const lista = progettiProponibili(f.data);
-    if (f.progetto_id && !lista.some(p => p.id === f.progetto_id) && PROG[f.progetto_id]) lista.unshift(PROG[f.progetto_id]);
+    // chiusi e archiviati: i più recenti per primi (di solito serve quello appena chiuso)
+    const recente = p => p.data_fine || p.data_inizio || '';
+    const altri = S.avvio.progetti.filter(p => p.stato !== 'ATTIVO').sort((a, b) => recente(b).localeCompare(recente(a)) || a.nome.localeCompare(b.nome));
+    // progetto chiuso già scelto (o del movimento in modifica): resta visibile anche con la lista ridotta
+    if (!f.tuttiProgetti && f.progetto_id && !lista.some(p => p.id === f.progetto_id) && PROG[f.progetto_id]) lista.unshift(PROG[f.progetto_id]);
+    const chip = p => `<button type="button" class="chip${f.progetto_id === p.id ? ' on' : ''}" data-azione="prog" data-v="${p.id}">${esc(p.nome)}</button>`;
+    const interruttore = altri.length ? `<button type="button" class="chip" data-azione="altriProg" aria-expanded="${!!f.tuttiProgetti}" style="border-style:dashed;">${f.tuttiProgetti ? 'Meno progetti' : 'Altri progetti'}</button>` : '';
     el.innerHTML = `<span class="label">Progetto (facoltativo)</span>
 <div class="chips"><button type="button" class="chip${!f.progetto_id ? ' on' : ''}" data-azione="prog" data-v="">Nessuno</button>
-${lista.map(p => `<button type="button" class="chip${f.progetto_id === p.id ? ' on' : ''}" data-azione="prog" data-v="${p.id}">${esc(p.nome)}</button>`).join('')}</div>`;
+${lista.map(chip).join('')}${interruttore}</div>
+${f.tuttiProgetti ? `<span class="small">Chiusi e archiviati</span><div class="chips">${altri.map(chip).join('')}</div>` : ''}`;
   } else if (nome === 'Altro') {
     const rimb = f.rimborsabile === 'DA_RIMBORSARE';
     el.innerHTML = `<button type="button" class="link" data-azione="altro" style="border:0;background:transparent;text-align:left;padding:0;min-height:44px;cursor:pointer;display:flex;align-items:center;gap:6px;">${ic('down', 16, 2)} ${f.altro ? 'Meno dettagli' : 'Altri dettagli: note, rimborsabile, valuta'}</button>
@@ -637,6 +644,7 @@ document.addEventListener('click', ev => {
     renderSezione('Data'); renderSezione('Progetto');
   }
   else if (f && a === 'prog') { f.progetto_id = v; renderSezione('Progetto'); }
+  else if (f && a === 'altriProg') { f.tuttiProgetti = !f.tuttiProgetti; renderSezione('Progetto'); }
   else if (f && a === 'altro') { leggiCampi(); f.altro = !f.altro; renderSezione('Altro'); }
   else if (f && a === 'rimb') { leggiCampi(); f.rimborsabile = f.rimborsabile === 'DA_RIMBORSARE' ? '' : 'DA_RIMBORSARE'; renderSezione('Altro'); }
   else if (f && a === 'sugg') {
