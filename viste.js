@@ -17,7 +17,7 @@ function rigaBudget(r, conModifica) {
   const stato = r.sopra
     ? `<span class="status ko">${ic('alert', 14, 2)} ${euroTondo(r.speso - (annuale ? r.maturato : r.importo))} ${annuale ? 'sopra la quota' : 'oltre'}</span>`
     : `<span class="small num">${annuale ? `quota a oggi ${euroTondo(r.maturato)}` : `restano ${euroTondo(r.importo - r.speso)}`}</span>`;
-  return `<div style="display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid #EFECE5;">
+  return `<div style="display:flex;flex-direction:column;gap:8px;padding:10px 0;border-bottom:1px solid var(--line2);">
 <div style="display:flex;align-items:center;gap:10px;">
 <span class="badge" style="width:32px;height:32px;border-radius:9px;">${ic(ICONA_MACRO[r.id] || 'tag', 18)}</span>
 <span class="grow strong" style="font-size:15px;">${esc(r.nome)}</span>
@@ -105,21 +105,21 @@ function graficoMesi(mesi, budget, corrente) {
     .filter((v, i, arr) => v > 0 && arr.indexOf(v) === i && (!budget || Math.abs(y(v) - y(budget)) > 12));
   const iMax = mesi.reduce((im, m, i) => m.valore > mesi[im].valore ? i : im, 0);
   let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Spesa mensile degli ultimi 12 mesi${budget ? ' rispetto al budget di ' + euroTondo(budget) : ''}">`;
-  tacche.forEach(t => { svg += `<line x1="0" x2="${w - asse}" y1="${y(t)}" y2="${y(t)}" stroke="#EFECE5"/><text x="${w}" y="${y(t) + 4}" text-anchor="end" font-size="10" fill="#56615F">${(t / 1000).toLocaleString('it-IT')}k</text>`; });
+  tacche.forEach(t => { svg += `<line x1="0" x2="${w - asse}" y1="${y(t)}" y2="${y(t)}" style="stroke:var(--line2)"/><text x="${w}" y="${y(t) + 4}" text-anchor="end" font-size="10" style="fill:var(--tx2)">${(t / 1000).toLocaleString('it-IT')}k</text>`; });
   mesi.forEach((m, i) => {
     const x = i * passo + (passo - bw) / 2, ty = y(m.valore), ultimo = i === mesi.length - 1;
     const alt = Math.max(0, base - ty);
     const r = Math.min(4, alt);
-    const colore = ultimo && corrente ? '#8FC1BC' : '#1F6F6B';
+    const colore = ultimo && corrente ? 'var(--barLeggera)' : 'var(--acc)';
     svg += `<g data-azione="an-apri-mese" data-a="${m.anno}" data-m="${m.mese}" style="cursor:pointer;"><title>${maiusc(MESI[m.mese - 1])} ${m.anno}: ${euro(m.valore)}</title>
 <rect x="${i * passo}" y="${top}" width="${passo}" height="${base - top + 20}" fill="transparent"/>
-${alt > 0 ? `<path d="M${x},${base} V${ty + r} Q${x},${ty} ${x + r},${ty} H${x + bw - r} Q${x + bw},${ty} ${x + bw},${ty + r} V${base} Z" fill="${colore}"/>` : ''}
-<text x="${x + bw / 2}" y="${base + 16}" text-anchor="middle" font-size="11" fill="${i === mesi.length - 1 ? '#1B2528' : '#56615F'}" font-weight="${i === mesi.length - 1 ? 600 : 400}">${MESI[m.mese - 1].charAt(0).toUpperCase()}</text></g>`;
+${alt > 0 ? `<path d="M${x},${base} V${ty + r} Q${x},${ty} ${x + r},${ty} H${x + bw - r} Q${x + bw},${ty} ${x + bw},${ty + r} V${base} Z" style="fill:${colore}"/>` : ''}
+<text x="${x + bw / 2}" y="${base + 16}" text-anchor="middle" font-size="11" style="fill:${i === mesi.length - 1 ? 'var(--tx)' : 'var(--tx2)'}" font-weight="${i === mesi.length - 1 ? 600 : 400}">${MESI[m.mese - 1].charAt(0).toUpperCase()}</text></g>`;
   });
-  if (budget) svg += `<line x1="0" x2="${w - asse}" y1="${y(budget)}" y2="${y(budget)}" stroke="#1B2528" stroke-width="1.5" stroke-dasharray="4 4"/><text x="${w}" y="${y(budget) + 4}" text-anchor="end" font-size="10" fill="#1B2528" font-weight="600">${(budget / 1000).toLocaleString('it-IT', { maximumFractionDigits: 1 })}k</text>`;
+  if (budget) svg += `<line x1="0" x2="${w - asse}" y1="${y(budget)}" y2="${y(budget)}" style="stroke:var(--tx)" stroke-width="1.5" stroke-dasharray="4 4"/><text x="${w}" y="${y(budget) + 4}" text-anchor="end" font-size="10" style="fill:var(--tx)" font-weight="600">${(budget / 1000).toLocaleString('it-IT', { maximumFractionDigits: 1 })}k</text>`;
   const mx = mesi[iMax];
-  if (mx.valore) svg += `<text x="${Math.min(w - asse - 30, Math.max(30, iMax * passo + passo / 2))}" y="${y(mx.valore) - 6}" text-anchor="middle" font-size="11" fill="#1B2528" font-weight="600" paint-order="stroke" stroke="#FFFFFF" stroke-width="3">${euroTondo(mx.valore)}</text>`;
-  svg += `<line x1="0" x2="${w - asse}" y1="${base}" y2="${base}" stroke="#C9C4B8"/></svg>`;
+  if (mx.valore) svg += `<text x="${Math.min(w - asse - 30, Math.max(30, iMax * passo + passo / 2))}" y="${y(mx.valore) - 6}" text-anchor="middle" font-size="11" font-weight="600" paint-order="stroke" stroke-width="3" style="fill:var(--tx);stroke:var(--card)">${euroTondo(mx.valore)}</text>`;
+  svg += `<line x1="0" x2="${w - asse}" y1="${base}" y2="${base}" style="stroke:var(--bordo)"/></svg>`;
   return svg;
 }
 function categorieHtml(lista, totale, periodo) {
@@ -128,9 +128,9 @@ function categorieHtml(lista, totale, periodo) {
   const scala = Math.max(1, ...lista.map(c => c.valore));
   return lista.map(c => {
     const aperta = a.aperte[c.id];
-    return `<div style="border-bottom:1px solid #EFECE5;">
+    return `<div style="border-bottom:1px solid var(--line2);">
 <button type="button" data-azione="an-apri" data-v="${c.id}" aria-expanded="${!!aperta}" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;padding:0;text-align:left;">${barreHtml([c], totale, scala)}</button>
-${aperta ? `<div style="background:#F5F3EE;border-radius:12px;padding:4px 12px;margin-bottom:8px;">${barreHtml(c.subs, c.valore)}
+${aperta ? `<div class="pannello" style="padding:4px 12px;margin-bottom:8px;">${barreHtml(c.subs, c.valore)}
 <button type="button" class="link" data-azione="an-movimenti" data-v="${c.id}" data-periodo="${periodo}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Vedi i movimenti</button></div>` : ''}
 </div>`;
   }).join('');
@@ -201,7 +201,7 @@ function editorBudget(id, periodicita, importo) {
   const questo = `${b.anno}-${String(b.mese).padStart(2, '0')}`;
   const pross = new Date(b.anno, b.mese, 1);
   const prossimo = `${pross.getFullYear()}-${String(pross.getMonth() + 1).padStart(2, '0')}`;
-  return `<div style="background:#F5F3EE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;margin:8px 0;">
+  return `<div class="pannello" style="padding:12px;display:flex;flex-direction:column;gap:10px;margin:8px 0;">
 <div class="field"><label class="label" for="budImporto">Importo${bud.editPer === 'ANNUALE' ? ' annuo' : ' mensile'}</label>
 <input id="budImporto" class="input num" inputmode="decimal" value="${esc(importo ? String(importo).replace('.', ',') : '')}" placeholder="0 = nessun budget"></div>
 <div class="seg two" role="group" aria-label="Periodicità">
@@ -290,7 +290,7 @@ ${f.id ? `<div class="field"><label class="label" for="pStato">Stato</label><sel
 <button type="button" class="switch${f.escludi_da_totali ? ' on' : ''}" role="switch" aria-checked="${f.escludi_da_totali}" aria-label="Escludi dai totali personali" data-azione="prog-escludi"><span></span></button></div>
 <div class="field"><label class="label" for="pNote">Note</label><input id="pNote" class="input" maxlength="300" value="${esc(f.note)}"></div>
 <div style="display:flex;gap:8px;"><button type="button" class="btn sec" data-azione="prog-annulla">Annulla</button><button type="button" class="btn" data-azione="prog-salva">Salva</button></div>
-${f.id && !f.conteggio ? `<button type="button" class="link" data-azione="prog-elimina" style="border:0;background:transparent;cursor:pointer;min-height:44px;color:#B3261E;">Elimina progetto (nessun movimento collegato)</button>` : ''}
+${f.id && !f.conteggio ? `<button type="button" class="link" data-azione="prog-elimina" style="border:0;background:transparent;cursor:pointer;min-height:44px;color:var(--ko);">Elimina progetto (nessun movimento collegato)</button>` : ''}
 </section>`;
 }
 function leggiFormProgetto() {
@@ -350,6 +350,10 @@ function disegnaAltro() {
   const scroll = $('#altScroll') ? $('#altScroll').scrollTop : 0;
   $('#vista').innerHTML = `${intestazione('Altro')}
 <main class="scroll" id="altScroll">
+<section class="card" aria-label="Aspetto" style="gap:10px;"><span class="cap">Aspetto</span>
+<div class="seg">${[['chiaro', 'Chiaro'], ['scuro', 'Scuro'], ['auto', 'Automatico']].map(([id, t]) =>
+  `<button type="button" class="${temaScelto() === id ? 'on' : ''}" aria-pressed="${temaScelto() === id}" data-azione="alt-tema" data-v="${id}">${t}</button>`).join('')}</div>
+<span class="small">Automatico segue l’impostazione chiaro/scuro del telefono.</span></section>
 <section class="card" style="padding:4px 16px;gap:0;">
 ${voceAltro('budget', 'chart', 'Budget', `${euroTondo(b.totale)}/mese · ${b.righe.length} categorie con budget`)}
 ${voceAltro('progetti', 'folder', 'Progetti', `${(S.avvio.progettiAttivi || []).length} attivi`)}
@@ -372,13 +376,13 @@ ${d.rimborsi.length ? d.rimborsi.map(m => `<div class="row"><span class="badge">
 ${macro.map(m => {
     const subs = S.avvio.categorie.filter(c => c.parent_id === m.id).sort((x, y) => x.ordine - y.ordine);
     const aperta = al.aperta === m.id;
-    return `<div style="border-bottom:1px solid #EFECE5;">
+    return `<div style="border-bottom:1px solid var(--line2);">
 <button type="button" data-azione="alt-cat-apri" data-v="${m.id}" aria-expanded="${aperta}" style="width:100%;display:flex;align-items:center;gap:10px;min-height:48px;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;padding:0;text-align:left;${m.attiva ? '' : 'opacity:.55;'}">
 <span class="grow" style="font-size:15px;font-weight:500;">${esc(m.nome)}${m.attiva ? '' : ' (archiviata)'}</span><span class="small">${subs.filter(s => s.attiva).length} sottocategorie</span>${ic('down', 16, 2)}</button>
 ${aperta ? `<div style="display:flex;flex-direction:column;padding:0 0 10px 12px;">
 ${subs.map(s => `<div style="display:flex;align-items:center;gap:8px;min-height:40px;${s.attiva ? '' : 'opacity:.55;'}"><span class="grow" style="font-size:14px;">${esc(s.nome)}${s.attiva ? '' : ' (archiviata)'}</span>
 <button type="button" class="link" data-azione="alt-cat-rinomina" data-v="${s.id}" style="border:0;background:transparent;cursor:pointer;font-size:13px;min-height:36px;">Rinomina</button>
-<button type="button" class="link" data-azione="alt-cat-attiva" data-v="${s.id}" data-attiva="${!s.attiva}" style="border:0;background:transparent;cursor:pointer;font-size:13px;min-height:36px;color:#56615F;">${s.attiva ? 'Archivia' : 'Ripristina'}</button></div>`).join('')}
+<button type="button" class="link" data-azione="alt-cat-attiva" data-v="${s.id}" data-attiva="${!s.attiva}" style="border:0;background:transparent;cursor:pointer;font-size:13px;min-height:36px;color:var(--tx2);">${s.attiva ? 'Archivia' : 'Ripristina'}</button></div>`).join('')}
 <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px;">
 <button type="button" class="chip ghost" style="min-height:36px;" data-azione="alt-cat-nuova" data-v="${m.id}">${ic('plus', 14, 2.2)} Sottocategoria</button>
 <button type="button" class="chip" style="min-height:36px;" data-azione="alt-cat-rinomina" data-v="${m.id}">Rinomina macro</button>
@@ -428,7 +432,7 @@ function formRicorrente() {
   const f = S.alt.ric;
   const subs = S.avvio.categorie.filter(c => c.parent_id && c.attiva);
   const macro = S.avvio.categorie.filter(c => !c.parent_id && c.attiva).sort((x, y) => x.ordine - y.ordine);
-  return `<div style="background:#F5F3EE;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;margin:8px 0;">
+  return `<div class="pannello" style="padding:12px;display:flex;flex-direction:column;gap:10px;margin:8px 0;">
 <div class="field"><label class="label" for="rDescr">Descrizione</label><input id="rDescr" class="input" maxlength="120" value="${esc(f.descrizione)}"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
 <div class="field"><label class="label" for="rImporto">Importo</label><input id="rImporto" class="input num" inputmode="decimal" value="${esc(f.importo === '' ? '' : String(f.importo).replace('.', ','))}"></div>
@@ -515,6 +519,7 @@ function azioneViste(a, el) {
     S.tornaA = S.vista; vai('movimenti'); return true;
   }
   // Altro
+  if (a === 'alt-tema') { impostaTema(v); disegnaAltro(); return true; }
   if (a === 'alt-scollega') {
     if (confirm('Scollegare questo dispositivo? Per usarlo di nuovo servirà il link di collegamento.')) {
       try { localStorage.clear(); } catch (e) { /* niente */ }

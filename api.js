@@ -61,3 +61,17 @@ async function chiama(fn, ...args) {
   }
   return r.dati;
 }
+
+// ------------------------------------------------------------------ aspetto (chiaro / scuro / automatico)
+const TEMA_CHIAVE = 'agente_tema';
+function temaScelto() { try { return localStorage.getItem(TEMA_CHIAVE) || 'chiaro'; } catch (e) { return 'chiaro'; } }
+function applicaTema() {
+  const t = temaScelto();
+  document.documentElement.dataset.tema = t;
+  const scuro = t === 'scuro' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = scuro ? '#000000' : '#F1F4F2';
+}
+function impostaTema(t) { try { localStorage.setItem(TEMA_CHIAVE, t); } catch (e) { /* niente */ } applicaTema(); }
+applicaTema();
+if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applicaTema);

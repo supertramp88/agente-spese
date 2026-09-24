@@ -191,7 +191,7 @@ const errore = e => e instanceof ErroreCollegamento
 function rigaMovimento(m, conGiorno) {
   const negativo = m.tipo !== 'SPESA';
   const segno = negativo ? '−' : '';
-  const colore = negativo ? ' style="color: #1F6F3A;"' : '';
+  const colore = negativo ? ' style="color: var(--ok);"' : '';
   const dett = [conGiorno ? breveGiorno(m.data) : '', m.tipo === 'RIMBORSO' ? 'Rimborso' : m.tipo === 'ENTRATA' ? 'Entrata' : '',
     nomeCat(m.categoria_id), nomeProg(m.progetto_id),
     m.rimborsabile === 'DA_RIMBORSARE' ? 'da rimborsare' : m.rimborsabile === 'AZIENDA' ? 'pagata dall’azienda' : ''].filter(Boolean).join(' · ');
@@ -203,6 +203,16 @@ function rigaMovimento(m, conGiorno) {
 }
 
 // ------------------------------------------------------------------ HOME
+/** Anello dello stile 3: esterno = budget speso, interno sottile = parte del mese trascorsa. */
+function anelloHtml(pct, quota, sopra) {
+  const r = 56, c = 2 * Math.PI * r, ri = 42, ci = 2 * Math.PI * ri;
+  const pieno = c * Math.min(pct, 100) / 100, giorni = ci * Math.min(quota, 100) / 100;
+  return `<div class="anello-graf" role="img" aria-label="Speso ${pct}% del budget; trascorso ${quota}% del mese">
+<svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke-width="11" style="stroke:var(--track)"></circle>
+<circle cx="66" cy="66" r="${r}" fill="none" stroke-width="11" stroke-linecap="round" stroke-dasharray="${pieno.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 66 66)" style="stroke:var(${sopra ? '--ko' : '--acc'})"></circle>
+<circle cx="66" cy="66" r="${ri}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${giorni.toFixed(1)} ${ci.toFixed(1)}" transform="rotate(-90 66 66)" style="stroke:var(--tx2);opacity:.45"></circle></svg>
+<div class="anello-testo"><span class="h2 num" style="font-size:26px;">${pct}%</span><span class="small">del budget</span></div></div>`;
+}
 function renderHome() {
   const a = S.avvio, m = a.mese;
   const pct = m.budget ? Math.round(m.speso / m.budget * 100) : 0;
@@ -214,12 +224,13 @@ function renderHome() {
     : `<span class="status ok">${ic('check', 14, 2.4)} In linea: ${pct}% speso, ${quota}% del mese passato</span>`;
   $('#vista').innerHTML = `
 <header class="top"><h1 class="h1">${esc(maiusc(m.nome.split(' ')[0]))}</h1>
-${a.geminiConfigurato ? `<button class="iconbtn" data-azione="scontrino" aria-label="Scansiona scontrino" style="background:#FFFFFF;border:1px solid #E3DFD6;">${ic('camera')}</button>` : ''}</header>
+${a.geminiConfigurato ? `<button class="iconbtn bordo" data-azione="scontrino" aria-label="Scansiona scontrino">${ic('camera')}</button>` : ''}</header>
 <main class="scroll">
 <section class="card" aria-label="Riepilogo del mese">
-<span class="label">Speso a ${esc(m.nome)}</span>
-<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;"><span class="hero num">${euroTondo(m.speso)}</span>${m.budget ? `<span class="label num">su ${euroTondo(m.budget)}</span>` : ''}</div>
-${m.budget ? `<div class="meter" role="img" aria-label="Speso ${pct}% del budget; trascorso ${quota}% del mese"><div class="fill${m.speso > m.budget ? ' over' : ''}" style="width:${Math.min(100, pct)}%;"></div><div class="tick" style="left:${quota}%;"></div></div>${stato}` : ''}
+${m.budget ? `<div class="anello">${anelloHtml(pct, quota, m.speso > m.budget)}
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">Speso a ${esc(m.nome.split(' ')[0])}</span>
+<span class="hero num">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span></div></div>${stato}`
+  : `<span class="cap">Speso a ${esc(m.nome)}</span><span class="hero num">${euroTondo(m.speso)}</span>`}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
 <div><span class="label" style="display:block;">Proiezione fine mese</span><span class="h2 num">${euroTondo(proiezione)}</span></div>
@@ -247,9 +258,9 @@ function renderMovimenti() {
   const mv = S.mov;
   $('#vista').innerHTML = `
 <header class="top"><h1 class="h1">Movimenti</h1>
-${S.avvio.geminiConfigurato ? `<button class="iconbtn" data-azione="scontrino" aria-label="Scansiona scontrino" style="background:#FFFFFF;border:1px solid #E3DFD6;">${ic('camera')}</button>` : ''}</header>
+${S.avvio.geminiConfigurato ? `<button class="iconbtn bordo" data-azione="scontrino" aria-label="Scansiona scontrino">${ic('camera')}</button>` : ''}</header>
 <div style="padding:0 16px 8px;display:flex;flex-direction:column;gap:10px;">
-<div style="position:relative;"><span style="position:absolute;left:12px;top:13px;color:#56615F;">${ic('search', 20)}</span>
+<div style="position:relative;"><span style="position:absolute;left:12px;top:13px;color:var(--tx2);">${ic('search', 20)}</span>
 <input id="cerca" class="input" type="search" aria-label="Cerca nei movimenti" placeholder="Cerca in tutto lo storico" value="${esc(mv.testo)}" style="padding-left:42px;"></div>
 ${filtriMovimentiHtml()}
 <div class="mesenav" id="mesenav"${mv.testo.length >= 2 ? ' hidden' : ''}>
@@ -340,7 +351,7 @@ function pill(campo) {
   const s = S.form.letti[campo];
   if (!s) return '';
   return s === 'dubbio'
-    ? `<span class="pill" style="background:#FBE9E7;color:#8C1D18;">${ic('alert', 12, 2)} da verificare</span>`
+    ? `<span class="pill ko">${ic('alert', 12, 2)} da verificare</span>`
     : `<span class="pill ai">${ic('check', 12, 2.4)} ${s}</span>`;
 }
 function renderForm() {
@@ -348,7 +359,7 @@ function renderForm() {
   $('#vista').innerHTML = `
 <header class="top">
 <button class="iconbtn" data-azione="chiudiForm" aria-label="Chiudi senza salvare">${ic('x')}</button>
-<h1 class="h2">${f.id ? 'Modifica movimento' : 'Nuovo movimento'}</h1>
+<h1 class="h2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${f.id ? 'Modifica movimento' : 'Nuovo movimento'}</h1>
 ${f.id ? `<button class="iconbtn" data-azione="elimina" aria-label="Elimina movimento">${ic('trash')}</button>`
     : S.avvio.geminiConfigurato ? `<button class="chip" data-azione="scontrino">${ic('camera', 18)} Scontrino</button>` : '<span style="width:44px"></span>'}
 </header>
@@ -357,8 +368,8 @@ ${f.id ? `<button class="iconbtn" data-azione="elimina" aria-label="Elimina movi
 <div class="seg" role="group" aria-label="Tipo di movimento" id="sezTipo"></div>
 <div class="field">
 <div class="sechead"><label class="label" for="fImporto">Importo in euro</label>${pill('importo')}</div>
-<div class="importo-riga${f.letti.importo === 'dubbio' ? ' dubbio' : ''}"><span class="hero" style="color:#56615F;">€</span>
-<input id="fImporto" class="hero num" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(f.importo)}" style="border:0;background:transparent;width:100%;padding:0;color:#1B2528;outline:none;font-size:40px;"></div>
+<div class="importo-riga${f.letti.importo === 'dubbio' ? ' dubbio' : ''}"><span class="hero" style="color:var(--tx2);">€</span>
+<input id="fImporto" class="hero num" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(f.importo)}" style="border:0;background:transparent;width:100%;padding:0;color:var(--tx);outline:none;font-size:40px;"></div>
 </div>
 <div class="field">
 <div class="sechead"><label class="label" for="fDescr">Descrizione</label>${pill('descrizione')}</div>
@@ -398,14 +409,14 @@ function renderSezione(nome) {
     const chips = (f.categoria_id && !frequenti.includes(f.categoria_id) ? [f.categoria_id] : []).concat(frequenti);
     const macro = S.avvio.categorie.filter(c => !c.parent_id && c.attiva).sort((a, b) => a.ordine - b.ordine);
     el.innerHTML = `
-<div class="sechead"><span class="label">Categoria</span>${pill('categoria') || `<span class="small strong" style="color:#1B2528;">${esc(f.categoria_id ? nomeCat(f.categoria_id) : '')}</span>`}</div>
+<div class="sechead"><span class="cap">Categoria</span>${pill('categoria') || `<span class="small strong" style="color:var(--tx);">${esc(f.categoria_id ? nomeCat(f.categoria_id) : '')}</span>`}</div>
 <div class="chips">${chips.map(id => `<button type="button" class="chip${f.categoria_id === id ? ' on' : ''}" data-azione="cat" data-v="${id}" aria-pressed="${f.categoria_id === id}">${esc(nomeSub(id))}</button>`).join('')}
 <button type="button" class="chip ghost" data-azione="tutte">${ic('list', 16)} ${f.tutte ? 'Chiudi elenco' : 'Tutte le categorie'}</button></div>
 ${f.tutte ? `<div class="card" style="gap:14px;margin-top:4px;">${macro.map(m => `<div style="display:flex;flex-direction:column;gap:6px;">
-<span class="small strong" style="color:#1B2528;">${esc(m.nome)}</span><div class="chips">${S.avvio.categorie.filter(c => c.parent_id === m.id && c.attiva).sort((a, b) => a.ordine - b.ordine)
+<span class="small strong" style="color:var(--tx);">${esc(m.nome)}</span><div class="chips">${S.avvio.categorie.filter(c => c.parent_id === m.id && c.attiva).sort((a, b) => a.ordine - b.ordine)
     .map(c => `<button type="button" class="chip${f.categoria_id === c.id ? ' on' : ''}" style="min-height:36px;font-size:13px;" data-azione="cat" data-v="${c.id}">${esc(c.nome)}</button>`).join('')}</div></div>`).join('')}</div>` : ''}`;
   } else if (nome === 'Data') {
-    el.innerHTML = `<div class="sechead"><span class="label">Data</span>${pill('data')}</div>
+    el.innerHTML = `<div class="sechead"><span class="cap">Data</span>${pill('data')}</div>
 <div class="chips">${[['oggi', 'Oggi'], ['ieri', 'Ieri'], ['altra', 'Altra data']].map(([id, t]) =>
       `<button type="button" class="chip${f.dataScelta === id ? ' on' : ''}" data-azione="data" data-v="${id}" aria-pressed="${f.dataScelta === id}">${t}</button>`).join('')}</div>
 ${f.dataScelta === 'altra' ? `<input id="fDataAltra" class="input${f.letti.data === 'dubbio' ? ' dubbio' : ''}" type="date" aria-label="Data del movimento" value="${esc(f.data)}" max="${esc(S.avvio.oggi)}">` : ''}`;
@@ -418,7 +429,7 @@ ${f.dataScelta === 'altra' ? `<input id="fDataAltra" class="input${f.letti.data 
     if (!f.tuttiProgetti && f.progetto_id && !lista.some(p => p.id === f.progetto_id) && PROG[f.progetto_id]) lista.unshift(PROG[f.progetto_id]);
     const chip = p => `<button type="button" class="chip${f.progetto_id === p.id ? ' on' : ''}" data-azione="prog" data-v="${p.id}">${esc(p.nome)}</button>`;
     const interruttore = altri.length ? `<button type="button" class="chip" data-azione="altriProg" aria-expanded="${!!f.tuttiProgetti}" style="border-style:dashed;">${f.tuttiProgetti ? 'Meno progetti' : 'Altri progetti'}</button>` : '';
-    el.innerHTML = `<span class="label">Progetto (facoltativo)</span>
+    el.innerHTML = `<span class="cap">Progetto (facoltativo)</span>
 <div class="chips"><button type="button" class="chip${!f.progetto_id ? ' on' : ''}" data-azione="prog" data-v="">Nessuno</button>
 ${lista.map(chip).join('')}${interruttore}</div>
 ${f.tuttiProgetti ? `<span class="small">Chiusi e archiviati</span><div class="chips">${altri.map(chip).join('')}</div>` : ''}`;
