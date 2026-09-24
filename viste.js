@@ -92,8 +92,7 @@ function avvisoSommaHome(b) {
   return `<a href="#" data-azione="vai" data-v="budget" class="pill ko" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;font-size:13px;text-decoration:none;"><span style="flex-shrink:0;display:flex;">${ic('alert', 16, 2)}</span>
 <span>Le categorie sommano ${euroTondo(b.somma)}, ${euroTondo(-b.margine)} oltre il totale: riallinea i budget</span></a>`;
 }
-function homeBudgetHtml() {
-  const b = S.avvio.budget;
+function homeBudgetHtml(b = S.avvio.budget) {
   if (!b || !b.righe.length) return '';
   const mensili = b.righe.filter(r => r.periodicita === 'MENSILE');
   const annuali = b.righe.filter(r => r.periodicita === 'ANNUALE').sort((x, y) => y.pressione - x.pressione);

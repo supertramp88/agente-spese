@@ -215,33 +215,55 @@ function anelloHtml(pct, quota, sopra) {
 <circle cx="70" cy="70" r="${ri}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${giorni.toFixed(1)} ${ci.toFixed(1)}" transform="rotate(-90 70 70)" style="stroke:var(--tx2);opacity:.45"></circle></svg>
 <div class="anello-testo"><span class="h2 num" style="font-size:28px;font-weight:700;">${pct}%</span><span class="small">del budget</span></div></div>`;
 }
+/** Home del mese in corso oppure, con le frecce, di un mese passato (S.homeMese). */
 function renderHome() {
-  const a = S.avvio, m = a.mese;
+  const cur = S.avvio.mese, hm = S.homeMese;
+  if (!hm || (hm.anno === cur.anno && hm.mese === cur.mese)) { S.homeMese = null; disegnaHome(cur, S.avvio.budget, S.avvio.ultimi, true); return; }
+  const k = `home:${hm.anno}-${hm.mese}`, km = chiaveMov({ anno: hm.anno, mese: hm.mese, testo: '', filtri: {} });
+  const dati = memoDati(k), movs = memoDati(km);
+  if (dati) disegnaHome(dati.mese, dati.budget, movs ? movs.righe.slice(0, 8) : null, false);
+  else $('#vista').innerHTML = `${testataHome(hm.anno, hm.mese, false)}${caricamento()}`;
+  if (!memoFresco(k) || !memoFresco(km)) {
+    Promise.all([recupera(k, 'getMese', hm.anno, hm.mese), recupera(km, 'getMovimenti', hm.anno, hm.mese, '', {})])
+      .then(([d, mv]) => { if (S.vista === 'home' && S.homeMese === hm) disegnaHome(d.mese, d.budget, mv.righe.slice(0, 8), false); })
+      .catch(errore);
+  }
+}
+function testataHome(anno, mese, corrente) {
+  const annoDiverso = anno !== S.avvio.mese.anno;
+  return `<header class="top"><div style="display:flex;align-items:center;gap:0;min-width:0;">
+<button type="button" class="iconbtn" data-azione="home-mese" data-d="-1" aria-label="Mese precedente" style="margin-left:-12px;">${ic('left')}</button>
+<h1 class="h1" style="white-space:nowrap;">${esc(maiusc(MESI[mese - 1]))}${annoDiverso ? `<span class="label" style="margin-left:6px;font-family:inherit;">${anno}</span>` : ''}</h1>
+<button type="button" class="iconbtn" data-azione="home-mese" data-d="1" aria-label="Mese successivo"${corrente ? ' disabled style="opacity:.25;"' : ''}>${ic('right')}</button></div>
+${S.avvio.geminiConfigurato ? `<button type="button" class="chip" data-azione="scontrino" style="min-height:44px;flex-shrink:0;">${ic('camera', 18)} Scontrino</button>` : ''}</header>`;
+}
+function disegnaHome(m, budget, ultimi, corrente) {
   const pct = m.budget ? Math.round(m.speso / m.budget * 100) : 0;
   const quota = Math.round(m.giorniTrascorsi / m.giorniMese * 100);
-  const sopra = m.budget && pct > quota + 5;
+  const sopra = m.budget && (corrente ? pct > quota + 5 : m.speso > m.budget);
   const proiezione = m.giorniTrascorsi ? m.speso / m.giorniTrascorsi * m.giorniMese : 0;
-  $('#vista').innerHTML = `
-<header class="top"><h1 class="h1">${esc(maiusc(m.nome.split(' ')[0]))}</h1>
-${a.geminiConfigurato ? `<button type="button" class="chip" data-azione="scontrino" style="min-height:44px;">${ic('camera', 18)} Scontrino</button>` : ''}</header>
+  const nomeMese = MESI[m.mese - 1], oggi = S.avvio.mese;
+  $('#vista').innerHTML = `${testataHome(m.anno, m.mese, corrente)}
 <main class="scroll">
+${corrente ? '' : `<button type="button" class="link" data-azione="home-mese" data-d="0" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;text-align:left;align-self:flex-start;">${ic('left', 14, 2.4)} Torna a ${esc(MESI[oggi.mese - 1])}</button>`}
 <section class="card" aria-label="Riepilogo del mese">
 ${m.budget ? `<div class="anello">${anelloHtml(pct, quota, m.speso > m.budget)}
-<div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">${esc(m.nome.split(' ')[0])}</span>
-<span class="hero num">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span>
-<span class="small strong ${sopra ? 'ko' : 'ok'}">Giorno ${m.giorniTrascorsi} di ${m.giorniMese}: ${sopra ? 'sopra il ritmo' : 'in linea'}</span></div></div>`
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">${esc(nomeMese)}</span>
+<span class="hero num${!corrente && m.speso > m.budget ? ' ko' : ''}">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span>
+<span class="small strong ${sopra ? 'ko' : 'ok'}">${corrente ? `Giorno ${m.giorniTrascorsi} di ${m.giorniMese}: ${sopra ? 'sopra il ritmo' : 'in linea'}` : `Mese chiuso: ${sopra ? 'oltre il budget' : 'nel budget'}`}</span></div></div>`
   : `<span class="cap">Speso a ${esc(m.nome)}</span><span class="hero num">${euroTondo(m.speso)}</span>`}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
-<div><span class="label" style="display:block;">Proiezione fine mese</span><span class="h2 num">${euroTondo(proiezione)}</span></div>
-<div><span class="label" style="display:block;">${m.budget && m.speso > m.budget ? 'Oltre il budget' : 'Restano da spendere'}</span><span class="h2 num${m.budget && m.speso > m.budget ? ' ko' : ''}">${m.budget ? euroTondo(Math.abs(m.budget - m.speso)) : '—'}</span></div>
+<div><span class="label" style="display:block;">${corrente ? 'Proiezione fine mese' : 'Media al giorno'}</span><span class="h2 num">${euroTondo(corrente ? proiezione : m.speso / m.giorniMese)}</span></div>
+<div><span class="label" style="display:block;">${m.budget && m.speso > m.budget ? 'Oltre il budget' : corrente ? 'Restano da spendere' : 'Avanzati'}</span><span class="h2 num${m.budget && m.speso > m.budget ? ' ko' : ''}">${m.budget ? euroTondo(Math.abs(m.budget - m.speso)) : '—'}</span></div>
 </div>
 </section>
-${homeBudgetHtml()}
-${homeProgettiHtml()}
-<section class="card" aria-label="Ultimi movimenti" style="gap:4px;">
-<div class="sechead"><h2 class="h2">Ultimi movimenti</h2><a class="link" href="#" data-azione="vai" data-v="movimenti">Tutti</a></div>
-<div>${a.ultimi.length ? a.ultimi.map(x => rigaMovimento(x, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div>
+${homeBudgetHtml(budget)}
+${corrente ? homeProgettiHtml() : ''}
+<section class="card" aria-label="${corrente ? 'Ultimi movimenti' : 'Movimenti del mese'}" style="gap:4px;">
+<div class="sechead"><h2 class="h2">${corrente ? 'Ultimi movimenti' : `Movimenti di ${esc(nomeMese)}`}</h2>
+<a class="link" href="#" data-azione="home-movimenti" data-a="${m.anno}" data-m="${m.mese}">Tutti</a></div>
+<div>${!ultimi ? caricamento() : ultimi.length ? ultimi.map(x => rigaMovimento(x, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div>
 </section>
 </main>`;
 }
@@ -264,7 +286,10 @@ ${S.avvio.geminiConfigurato ? `<button class="iconbtn bordo" data-azione="scontr
 <input id="cerca" class="input" type="search" aria-label="Cerca nei movimenti" placeholder="Cerca in tutto lo storico" value="${esc(mv.testo)}" style="padding-left:42px;"></div>
 ${filtriMovimentiHtml()}
 <div class="mesenav" id="mesenav"${mv.testo.length >= 2 ? ' hidden' : ''}>
-${mv.filtri.tutto || mv.filtri.anno ? `<span class="strong">${mv.filtri.anno ? 'Tutto il ' + mv.filtri.anno : 'Tutto il periodo'}</span>
+${mv.filtri.anno ? `<button class="iconbtn" data-azione="mov-anno" data-d="-1" aria-label="Anno precedente">${ic('left')}</button>
+<span class="strong">Anno ${mv.filtri.anno}</span>
+<button class="iconbtn" data-azione="mov-anno" data-d="1" aria-label="Anno successivo"${mv.filtri.anno >= S.avvio.mese.anno ? ' disabled style="opacity:.25;"' : ''}>${ic('right')}</button>`
+    : mv.filtri.tutto ? `<span class="strong">Da sempre</span>
 <button type="button" class="link" data-azione="mov-mese" style="border:0;background:transparent;cursor:pointer;min-height:44px;">Solo ${esc(MESI[mv.mese - 1])}</button>`
     : `<button class="iconbtn" data-azione="mese" data-d="-1" aria-label="Mese precedente">${ic('left')}</button>
 <span class="strong">${maiusc(MESI[mv.mese - 1])} ${mv.anno}</span>
@@ -290,7 +315,10 @@ function filtriMovimentiHtml() {
     .map(c => `<option value="${c.id}"${f.categoria === c.id ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</optgroup>`).join('');
   const progetti = S.avvio.progetti.slice().sort((a, b) => (a.stato === 'ATTIVO' ? 0 : 1) - (b.stato === 'ATTIVO' ? 0 : 1) || a.nome.localeCompare(b.nome));
   const tipi = [['', 'Tutti i tipi'], ['SPESA', 'Spese'], ['RIMBORSO', 'Rimborsi'], ['ENTRATA', 'Entrate'], ['DA_RIMBORSARE', 'Da rimborsare']];
+  const per = f.anno ? 'anno' : f.tutto ? 'tutto' : '';
   return `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">
+<select id="fltPer" class="chip sel${per ? ' on' : ''}" aria-label="Periodo"><option value=""${per === '' ? ' selected' : ''}>Mese</option>
+<option value="anno"${per === 'anno' ? ' selected' : ''}>Anno ${f.anno || S.mov.anno}</option><option value="tutto"${per === 'tutto' ? ' selected' : ''}>Da sempre</option></select>
 <select id="fltCat" class="chip sel${f.categoria ? ' on' : ''}" aria-label="Filtra per categoria"><option value="">Tutte le categorie</option>${opzCat}</select>
 <select id="fltProg" class="chip sel${f.progetto ? ' on' : ''}" aria-label="Filtra per progetto"><option value="">Tutti i progetti</option>${progetti.map(p =>
     `<option value="${p.id}"${f.progetto === p.id ? ' selected' : ''}>${esc(p.nome)}</option>`).join('')}</select>
@@ -644,6 +672,22 @@ document.addEventListener('click', ev => {
     renderMovimenti(); caricaMovimenti();
   }
   else if (a === 'mov-mese') { S.mov.filtri.tutto = false; delete S.mov.filtri.anno; renderMovimenti(); caricaMovimenti(); }
+  else if (a === 'mov-anno') {
+    const nuovo = Number(S.mov.filtri.anno) + Number(el.dataset.d);
+    if (nuovo > S.avvio.mese.anno) return;
+    S.mov.filtri.anno = nuovo; renderMovimenti(); caricaMovimenti();   // tornando a "Mese" si riparte dal mese di prima
+  }
+  else if (a === 'home-mese') {
+    const d = Number(el.dataset.d), cur = S.avvio.mese, base = S.homeMese || cur;
+    const x = new Date(base.anno, base.mese - 1 + d, 1);
+    const futuro = x.getFullYear() * 12 + x.getMonth() >= cur.anno * 12 + cur.mese - 1;
+    S.homeMese = d === 0 || futuro ? null : { anno: x.getFullYear(), mese: x.getMonth() + 1 };
+    renderHome(); if ($('.scroll')) $('.scroll').scrollTop = 0;
+  }
+  else if (a === 'home-movimenti') {
+    S.mov = { anno: Number(el.dataset.a), mese: Number(el.dataset.m), testo: '', dati: null, filtri: {} };
+    S.tornaA = 'movimenti'; vai('movimenti');
+  }
   else if (a === 'chiudiForm') vai(S.tornaA || 'home');
   else if (a === 'salva') salva(el.dataset.poi);
   else if (a === 'elimina') elimina();
@@ -672,6 +716,13 @@ document.addEventListener('click', ev => {
 document.addEventListener('change', ev => {
   if (ev.target.id === 'foto' && ev.target.files[0]) { const file = ev.target.files[0]; ev.target.value = ''; leggiFoto(file); }
   if (ev.target.id === 'fDataAltra' && S.form) { S.form.data = ev.target.value; delete S.form.letti.data; renderSezione('Progetto'); }
+  if (ev.target.id === 'fltPer' && S.mov) {
+    const f = S.mov.filtri, v = ev.target.value;
+    delete f.anno; f.tutto = false;
+    if (v === 'anno') f.anno = S.mov.anno;
+    if (v === 'tutto') f.tutto = true;
+    renderMovimenti(); caricaMovimenti();
+  }
   const filtro = { fltCat: 'categoria', fltProg: 'progetto', fltTipo: 'tipo' }[ev.target.id];
   if (filtro && S.mov) {
     S.mov.filtri[filtro] = ev.target.value;
