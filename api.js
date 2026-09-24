@@ -27,8 +27,18 @@ window.addEventListener('hashchange', () => { if (leggiLinkCollegamento()) locat
 
 class ErroreCollegamento extends Error {}
 
-/** Chiama una funzione del server: stessa interfaccia di google.script.run, ma con fetch. */
+/** Chiama una funzione del server. Le letture (get…, statoScontrino) si ritentano una volta se la rete
+ *  o Google rispondono male (capita: server occupato, nuova versione appena pubblicata). */
 async function chiama(fn, ...args) {
+  const lettura = /^get|^statoScontrino$/.test(fn);
+  try { return await chiamaUnaVolta(fn, args); }
+  catch (e) {
+    if (!lettura || e instanceof ErroreCollegamento || e.daServer) throw e;
+    await new Promise(r => setTimeout(r, 1500));
+    return chiamaUnaVolta(fn, args);
+  }
+}
+async function chiamaUnaVolta(fn, args) {
   const c = Config.leggi();
   if (!c.api || !c.chiave) throw new ErroreCollegamento('Questo dispositivo non è ancora collegato.');
   const controllo = new AbortController();
@@ -53,11 +63,13 @@ async function chiama(fn, ...args) {
   }
   let r;
   try { r = await res.json(); } catch (e) {
-    throw new ErroreCollegamento('Il server non ha risposto come previsto: controlla l’indirizzo del server e che il deployment sia accessibile a "Chiunque".');
+    // pagina d'errore di Google invece dei dati: di solito momentanea (non è un problema di chiave o indirizzo)
+    throw new Error(`Il server non ha risposto correttamente${res.status && res.status !== 200 ? ` (errore ${res.status})` : ''}: riprova tra qualche secondo.`);
   }
   if (!r.ok) {
     if (r.codice === 'CHIAVE') throw new ErroreCollegamento(r.errore);
-    throw new Error(r.errore);
+    const err = new Error(r.errore); err.daServer = true;   // errore vero del server: ritentare non serve
+    throw err;
   }
   return r.dati;
 }

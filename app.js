@@ -225,11 +225,20 @@ function renderHome() {
   const dati = memoDati(k), movs = memoDati(km);
   if (dati) disegnaHome(dati.mese, dati.budget, movs ? movs.righe.slice(0, 8) : null, false);
   else $('#vista').innerHTML = `${testataHome(hm.anno, hm.mese, false)}${caricamento()}`;
-  if (!memoFresco(k) || !memoFresco(km)) {
+  if (memoFresco(k) && memoFresco(km)) return;
+  // si chiede al server solo quando si smette di sfogliare i mesi (niente coda di richieste inutili)
+  clearTimeout(S.homeTimer);
+  S.homeTimer = setTimeout(() => {
+    if (S.vista !== 'home' || S.homeMese !== hm) return;
     Promise.all([recupera(k, 'getMese', hm.anno, hm.mese), recupera(km, 'getMovimenti', hm.anno, hm.mese, '', {})])
       .then(([d, mv]) => { if (S.vista === 'home' && S.homeMese === hm) disegnaHome(d.mese, d.budget, mv.righe.slice(0, 8), false); })
-      .catch(errore);
-  }
+      .catch(e => {
+        if (S.vista !== 'home' || S.homeMese !== hm) return;
+        if (memoDati(k)) { errore(e); return; }   // restano a schermo i dati già visti
+        $('#vista').innerHTML = `${testataHome(hm.anno, hm.mese, false)}<div class="vuoto"><p class="ko strong">Dati non caricati</p>
+<p class="small">${esc(e.message)}</p><button type="button" class="btn" style="max-width:200px;margin:0 auto;" data-azione="home-riprova">Riprova</button></div>`;
+      });
+  }, 350);
 }
 function testataHome(anno, mese, corrente) {
   const annoDiverso = anno !== S.avvio.mese.anno;
@@ -339,7 +348,7 @@ async function caricaMovimenti() {
     const r = await recupera(chiave, 'getMovimenti', mv.anno, mv.mese, mv.testo, mv.filtri);
     if (mv.ultimaRichiesta !== chiave || S.vista !== 'movimenti') return;
     disegnaMovimenti(r);
-  } catch (e) { errore(e); }
+  } catch (e) { if (mv.ultimaRichiesta === chiave) erroreCaricamento(e); }
 }
 function disegnaMovimenti(r) {
   const mv = S.mov;
@@ -696,6 +705,8 @@ document.addEventListener('click', ev => {
     if (box) box.hidden = !aperta;
     el.setAttribute('aria-expanded', aperta);
   }
+  else if (a === 'home-riprova') renderHome();
+  else if (a === 'riprova-vista') { if (S.vista === 'movimenti') caricaMovimenti(); else if (S.vista === 'analisi') caricaAnalisi(); else vaiSenzaStorico(S.vista); }
   else if (a === 'home-movimenti') {
     S.mov = { anno: Number(el.dataset.a), mese: Number(el.dataset.m), testo: '', dati: null, filtri: {} };
     S.tornaA = 'movimenti'; vai('movimenti');

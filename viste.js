@@ -51,6 +51,13 @@ function barreHtml(voci, totale, scala) {
 </div>`).join('');
 }
 const caricamento = testo => `<div class="vuoto"><span class="attesa">${esc(testo || 'Caricamento')}</span></div>`;
+/** Se una richiesta fallisce mentre la schermata aspetta i dati: al posto di "Caricamento" messaggio e Riprova. */
+function erroreCaricamento(e) {
+  const attesa = document.querySelector('#vista .vuoto .attesa, #movSintesi .attesa, #anCorpo .attesa');
+  if (!attesa) { errore(e); return; }
+  (attesa.closest('.vuoto') || attesa.parentElement).innerHTML = `<div class="vuoto" style="width:100%;"><p class="ko strong">Dati non caricati</p>
+<p class="small">${esc(e.message)}</p><button type="button" class="btn" style="max-width:200px;margin:0 auto;" data-azione="riprova-vista">Riprova</button></div>`;
+}
 function intestazione(titolo, indietro, destra) {
   return `<header class="top">${indietro ? `<button class="iconbtn" data-azione="vai" data-v="${indietro}" aria-label="Indietro">${ic('left')}</button>` : ''}
 <h1 class="h1 grow">${esc(titolo)}</h1>${destra || ''}</header>`;
@@ -155,7 +162,7 @@ async function caricaAnalisi() {
     const d = await recupera(chiave, 'getAnalisi', a.anno, a.mese);
     if (a.richiesta !== chiave || S.vista !== 'analisi') return;
     a.dati = d; renderAnalisiCorpo();
-  } catch (e) { errore(e); }
+  } catch (e) { if (a.richiesta === chiave) erroreCaricamento(e); }
 }
 /** Barra con angoli superiori arrotondati; se supera il budget (yb), la parte sopra la linea è rossa. */
 function barraMese(x, bw, base, ty, r, yb, colore) {
@@ -346,7 +353,7 @@ function renderProgetti() {
       pr.lista = l;
       // con il modulo già a schermo non si ridisegna (si perderebbe ciò che si sta scrivendo)
       if (S.vista === 'progetti' && (!pr.form || !$('#pNome'))) disegnaProgetti();
-    }).catch(errore);
+    }).catch(erroreCaricamento);
   }
   if (!pr.lista) { $('#vista').innerHTML = `${intestazione('Progetti', 'altro', PROG_DESTRA())}${caricamento()}`; return; }
   disegnaProgetti();
@@ -440,7 +447,7 @@ function renderAltro() {
       al.dati = d;
       const scrive = al.ric || (document.activeElement && document.activeElement.id === 'repEmail');
       if (S.vista === 'altro' && !scrive) disegnaAltro();
-    }).catch(errore);
+    }).catch(erroreCaricamento);
   }
   if (!al.dati) { $('#vista').innerHTML = `${intestazione('Altro')}${caricamento()}`; return; }
   disegnaAltro();
