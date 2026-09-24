@@ -68,10 +68,6 @@ a{color:var(--acc)}a:hover{color:var(--accH)}
 .budnome .freccia{display:inline-flex;color:var(--tx2);transition:transform .15s}
 .budnome[aria-expanded="true"] .freccia{transform:rotate(180deg)}
 .budsub{display:flex;flex-direction:column;gap:6px;padding:10px 12px;font-size:13px;margin-top:2px}
-.barcat{position:relative;height:8px}
-.barcat-budget{position:absolute;left:0;top:0;height:8px;border-radius:4px;background:var(--track)}
-.barcat-fill{position:absolute;left:0;top:0;height:8px;border-radius:4px}
-.barcat-tacca{position:absolute;top:-4px;width:2px;height:16px;background:var(--tx);border-radius:1px}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:128px;padding:16px;border-radius:20px;border:1px solid var(--line);background:var(--card);color:var(--tx);font:inherit;text-align:left;cursor:pointer}
 .tile-t{font-family:'Space Grotesk',system-ui,sans-serif;font-size:18px;font-weight:700;margin-top:auto}
