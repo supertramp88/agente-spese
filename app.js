@@ -252,6 +252,7 @@ ${m.budget ? `<div class="anello">${anelloHtml(pct, quota, m.speso > m.budget)}
 <span class="hero num${!corrente && m.speso > m.budget ? ' ko' : ''}">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span>
 <span class="small strong ${sopra ? 'ko' : 'ok'}">${corrente ? `Giorno ${m.giorniTrascorsi} di ${m.giorniMese}: ${sopra ? 'sopra il ritmo' : 'in linea'}` : `Mese chiuso: ${sopra ? 'oltre il budget' : 'nel budget'}`}</span></div></div>`
   : `<span class="cap">Speso a ${esc(m.nome)}</span><span class="hero num">${euroTondo(m.speso)}</span>`}
+${rigaEsclusiHtml(m.speso, m.esclusi)}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
 <div><span class="label" style="display:block;">${corrente ? 'Proiezione fine mese' : 'Media al giorno'}</span><span class="h2 num">${euroTondo(corrente ? proiezione : m.speso / m.giorniMese)}</span></div>
@@ -532,7 +533,8 @@ function anteprimaLocale(p) {
   const m = Object.assign({}, p, { id: 'in-salvataggio' });
   S.avvio.ultimi = [m].concat(S.avvio.ultimi).slice(0, 8);
   const d = daIso(p.data);
-  if (d.getFullYear() === S.avvio.mese.anno && d.getMonth() + 1 === S.avvio.mese.mese && !p.rimborsabile) {
+  const escluso = p.progetto_id && PROG[p.progetto_id] && PROG[p.progetto_id].escludi_da_totali === true;
+  if (d.getFullYear() === S.avvio.mese.anno && d.getMonth() + 1 === S.avvio.mese.mese && !p.rimborsabile && !escluso) {
     S.avvio.mese.speso += p.tipo === 'SPESA' ? p.importo : p.tipo === 'RIMBORSO' ? -p.importo : 0;
   }
 }

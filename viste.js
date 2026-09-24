@@ -62,6 +62,14 @@ const confrontoHtml = (att, prec, nome) => {
   return `<span class="status ${d > 0 ? 'ko' : 'ok'}">${ic(d > 0 ? 'alert' : 'check', 14, 2.2)} ${Math.abs(d)}% ${d > 0 ? 'in più' : 'in meno'} di ${esc(nome)} (${euroTondo(prec)})</span>`;
 };
 
+/** Riga "+ progetti esclusi: … · totale uscite …": i totali restano quelli personali, le spese dei progetti
+ *  esclusi (viaggi, progetti, DIY…) si vedono a parte, solo quando ci sono. */
+function rigaEsclusiHtml(personale, x) {
+  if (!x || !x.totale) return '';
+  const nomi = x.voci.slice(0, 2).map(v => esc(v.nome)).join(', ') + (x.voci.length > 2 ? '…' : '');
+  return `<span class="small">+ progetti esclusi: ${euroTondo(x.totale)} (${nomi}) · <b style="color:var(--tx);">totale uscite ${euroTondo(personale + x.totale)}</b></span>`;
+}
+
 // ------------------------------------------------------------------ HOME: sezioni aggiuntive
 /** Riga di budget in Home, come nel bozzetto: nome, speso / budget, barra, periodicità e percentuale. */
 function rigaBudgetHome(r) {
@@ -202,7 +210,8 @@ function renderAnalisiCorpo() {
 ${confrontoHtml(m.totale, m.totalePrec, `${MESI[d.mese - 1]} ${d.anno - 1}${d.corrente ? ', stessi giorni' : ''}`)}
 ${!m.budget ? '' : m.totale > m.budget
   ? `<span class="status ko">${ic('alert', 14, 2)} ${euroTondo(m.totale - m.budget)} oltre il budget del mese (${euroTondo(m.budget)}) · ${Math.round(m.totale / m.budget * 100)}% usato</span>`
-  : `<span class="small">Budget del mese ${euroTondo(m.budget)} · ${Math.round(m.totale / m.budget * 100)}% usato</span>`}</section>
+  : `<span class="small">Budget del mese ${euroTondo(m.budget)} · ${Math.round(m.totale / m.budget * 100)}% usato</span>`}
+${rigaEsclusiHtml(m.totale, m.esclusi)}</section>
 <section class="card"><h2 class="h2">Ultimi 12 mesi</h2>${graficoMesi(d.mesi12, m.budget, d.corrente)}
 <span class="small">Tratteggio = budget mensile${m.budget ? ` (${euroTondo(m.budget)}); in rosso la parte oltre` : ''} · media ${euroTondo(d.mesi12.reduce((s, x) => s + x.valore, 0) / 12)} al mese · tocca una barra per aprire quel mese</span></section>
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">tocca per il dettaglio</span></div>
@@ -217,6 +226,7 @@ ${m.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;">
 <section class="card"><span class="label">${d.anno} da gennaio${d.corrente ? ' a oggi' : ` a fine ${MESI[d.mese - 1]}`}</span>
 <span class="hero num${y.quotaBudget && y.totale > y.quotaBudget ? ' ko' : ''}">${euroTondo(y.totale)}</span>${stato}
+${rigaEsclusiHtml(y.totale, y.esclusi)}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
 <div><span class="label" style="display:block;">Media mensile</span><span class="h2 num">${euroTondo(y.mediaMensile)}</span></div>
