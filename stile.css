@@ -64,6 +64,10 @@ a{color:var(--acc)}a:hover{color:var(--accH)}
 .regole{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:14px;line-height:1.45}
 .regole li::marker{color:var(--acc)}
 .regole b{font-weight:600}
+.budnome{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:4px 0;margin:-4px 0;min-height:32px;font:inherit;color:inherit;cursor:pointer;text-align:left}
+.budnome .freccia{display:inline-flex;color:var(--tx2);transition:transform .15s}
+.budnome[aria-expanded="true"] .freccia{transform:rotate(180deg)}
+.budsub{display:flex;flex-direction:column;gap:6px;padding:10px 12px;font-size:13px;margin-top:2px}
 .nota{margin:0;padding:10px 12px;border-radius:12px;background:var(--soft);color:var(--tx);font-size:14px;line-height:1.45}
 
 [hidden]{display:none !important}

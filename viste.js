@@ -78,11 +78,17 @@ function rigaBudgetHome(r) {
   const classe = pct > 100 ? ' over' : (r.sopra || pct >= 90) ? ' warn' : '';
   const tick = annuale && r.importo ? Math.round(r.maturato / r.importo * 100) : null;
   const sotto = annuale ? (r.sopra ? 'annuale · sopra il ritmo' : `annuale · quota a oggi ${euroTondo(r.maturato)}`) : 'mensile';
+  const aperta = S.homeAperte && S.homeAperte.has(r.id), subs = r.subs || [];
   return `<div style="display:flex;flex-direction:column;gap:6px;padding:8px 0;">
-<div style="display:flex;justify-content:space-between;gap:8px;font-size:14px;"><span class="strong" style="font-weight:500;">${esc(r.nome)}</span>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;">
+<button type="button" class="budnome" data-azione="home-bud-apri" data-v="${r.id}" aria-expanded="${aperta}" aria-controls="sub-${r.id}">
+<span style="font-weight:500;">${esc(r.nome)}</span><span class="freccia">${ic('down', 14, 2.2)}</span></button>
 <span class="num" style="white-space:nowrap;">${euroTondo(r.speso)} <span style="color:var(--tx2);">/ ${euroTondo(r.importo)}</span></span></div>
 <div class="meter" role="img" aria-label="${esc(r.nome)}: speso ${pct}% del budget ${annuale ? 'annuale' : 'mensile'}"><div class="fill${classe}" style="width:${Math.max(0, Math.min(100, pct))}%;"></div>${tick == null ? '' : `<div class="tick" style="left:${Math.max(0, Math.min(100, tick))}%;"></div>`}</div>
-<div style="display:flex;justify-content:space-between;gap:8px;" class="small"><span>${sotto}</span><span class="num${pct > 100 ? ' ko strong' : ''}">${pct}%</span></div></div>`;
+<div style="display:flex;justify-content:space-between;gap:8px;" class="small"><span>${sotto}</span><span class="num${pct > 100 ? ' ko strong' : ''}">${pct}%</span></div>
+<div id="sub-${r.id}" class="pannello budsub"${aperta ? '' : ' hidden'}>${subs.length ? subs.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;">
+<span>${esc(x.nome)}</span><span class="num">${euro(x.valore)} <span class="small">${r.speso ? Math.round(x.valore / r.speso * 100) : 0}%</span></span></div>`).join('')
+    : `<span class="small">Nessuna spesa ${annuale ? 'da gennaio' : 'nel mese'}</span>`}</div></div>`;
 }
 /** Confronto tra budget totale e somma delle categorie, per questo mese e (se diverso) per il prossimo. */
 function sommaBudgetHtml(b) {

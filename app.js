@@ -686,6 +686,14 @@ document.addEventListener('click', ev => {
     S.homeMese = d === 0 || futuro ? null : { anno: x.getFullYear(), mese: x.getMonth() + 1 };
     renderHome(); if ($('.scroll')) $('.scroll').scrollTop = 0;
   }
+  else if (a === 'home-bud-apri') {
+    // apre/chiude il dettaglio senza ridisegnare la pagina (la posizione di scorrimento resta)
+    S.homeAperte = S.homeAperte || new Set();
+    const box = document.getElementById('sub-' + v), aperta = !S.homeAperte.has(v);
+    if (aperta) S.homeAperte.add(v); else S.homeAperte.delete(v);
+    if (box) box.hidden = !aperta;
+    el.setAttribute('aria-expanded', aperta);
+  }
   else if (a === 'home-movimenti') {
     S.mov = { anno: Number(el.dataset.a), mese: Number(el.dataset.m), testo: '', dati: null, filtri: {} };
     S.tornaA = 'movimenti'; vai('movimenti');
