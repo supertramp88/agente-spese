@@ -127,6 +127,7 @@ function avvioSalvato() {
   try { const a = JSON.parse(localStorage.getItem(AVVIO_LOCALE)); return a && a.categorie ? a : null; } catch (e) { return null; }
 }
 function indicizza() {
+  S.avvioT = Date.now();
   try { localStorage.setItem(AVVIO_LOCALE, JSON.stringify(S.avvio)); } catch (e) { /* spazio esaurito: si continua */ }
   CAT = {}; PROG = {};
   const macro = {};
@@ -739,6 +740,21 @@ document.addEventListener('change', ev => {
     if (filtro === 'progetto') S.mov.filtri.tutto = !!ev.target.value;
     renderMovimenti(); caricaMovimenti();
   }
+});
+
+// ------------------------------------------------------------------ ritorno in primo piano
+// Sul telefono l'app installata resta aperta in background anche per giorni: quando torna visibile
+// si aggiornano i dati (e, se nel frattempo è cambiato il giorno, anche "oggi" e il mese corrente).
+const RINFRESCO_MS = 60 * 1000;
+let rinfrescoInCorso = false;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !S.avvio || !S.avvioT || rinfrescoInCorso) return;
+  if (Date.now() - S.avvioT < RINFRESCO_MS || !Config.collegato()) return;
+  rinfrescoInCorso = true;
+  chiama('getAvvio')
+    .then(a => { S.avvio = a; indicizza(); datiModificati(); if (S.vista !== 'form') ridisegna(); })
+    .catch(() => { /* si riproverà al prossimo ritorno */ })
+    .finally(() => { rinfrescoInCorso = false; });
 });
 
 // ------------------------------------------------------------------ avvio
