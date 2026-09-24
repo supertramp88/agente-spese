@@ -61,6 +61,22 @@ function rigaBudgetHome(r) {
 <div class="meter" role="img" aria-label="${esc(r.nome)}: speso ${pct}% del budget ${annuale ? 'annuale' : 'mensile'}"><div class="fill${classe}" style="width:${Math.max(0, Math.min(100, pct))}%;"></div>${tick == null ? '' : `<div class="tick" style="left:${Math.max(0, Math.min(100, tick))}%;"></div>`}</div>
 <div style="display:flex;justify-content:space-between;gap:8px;" class="small"><span>${sotto}</span><span class="num${pct > 100 ? ' ko strong' : ''}">${pct}%</span></div></div>`;
 }
+/** Confronto tra budget totale e somma delle categorie, per questo mese e (se diverso) per il prossimo. */
+function sommaBudgetHtml(b) {
+  const riga = (x, quando) => x.margine >= 0
+    ? `<span class="small">${quando}: categorie ${euroTondo(x.somma)} su ${euroTondo(x.totale)} · margine libero ${euroTondo(x.margine)}</span>`
+    : `<div class="pill ko" style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;border-radius:12px;font-size:13px;"><span style="flex-shrink:0;display:flex;padding-top:1px;">${ic('alert', 16, 2)}</span>
+<span><b>${quando}: le categorie superano il totale di ${euroTondo(-x.margine)}.</b> Sommano ${euroTondo(x.somma)} al mese (gli annuali contano 1/12) contro ${euroTondo(x.totale)}: riduci qualche categoria o alza il totale.</span></div>`;
+  const p = b.prossimo;
+  const cambia = p && (p.totale !== b.totale || p.somma !== b.somma);
+  return riga(b, maiusc(MESI[b.mese - 1])) + (cambia ? riga(p, `Da ${MESI[p.mese - 1]}`) : '');
+}
+/** Avviso breve per la Home: solo se le categorie superano il totale. */
+function avvisoSommaHome(b) {
+  if (!b.totale || b.margine >= 0) return '';
+  return `<a href="#" data-azione="vai" data-v="budget" class="pill ko" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;font-size:13px;text-decoration:none;"><span style="flex-shrink:0;display:flex;">${ic('alert', 16, 2)}</span>
+<span>Le categorie sommano ${euroTondo(b.somma)}, ${euroTondo(-b.margine)} oltre il totale: riallinea i budget</span></a>`;
+}
 function homeBudgetHtml() {
   const b = S.avvio.budget;
   if (!b || !b.righe.length) return '';
@@ -68,7 +84,7 @@ function homeBudgetHtml() {
   const annuali = b.righe.filter(r => r.periodicita === 'ANNUALE').sort((x, y) => y.pressione - x.pressione);
   return `${mensili.length ? `<section class="card" aria-label="Budget mensili" style="gap:4px;">
 <div class="sechead"><h2 class="h2">Budget del mese</h2><a class="link" href="#" data-azione="vai" data-v="budget">Tutti</a></div>
-<div>${mensili.map(rigaBudgetHome).join('')}</div></section>` : ''}
+${avvisoSommaHome(b)}<div>${mensili.map(rigaBudgetHome).join('')}</div></section>` : avvisoSommaHome(b)}
 ${annuali.length ? `<section class="card" aria-label="Budget annuali" style="gap:4px;">
 <div class="sechead"><h2 class="h2">Budget annuali da tenere d’occhio</h2></div>
 <div>${annuali.slice(0, 3).map(rigaBudgetHome).join('')}</div>
@@ -199,7 +215,7 @@ function renderBudget() {
 <main class="scroll">
 <section class="card"><span class="label">Budget totale</span>
 <div style="display:flex;align-items:baseline;gap:8px;"><span class="hero num">${euroTondo(b.totale)}</span><span class="label">al mese</span></div>
-<span class="small">Somma dei budget per categoria: ${euroTondo(b.somma)} · ${b.margine >= 0 ? `margine libero ${euroTondo(b.margine)}` : `<span class="ko strong">le categorie superano il totale di ${euroTondo(-b.margine)}</span>`}</span>
+${sommaBudgetHtml(b)}
 <button type="button" class="link" data-azione="bud-modifica" data-v="*" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;text-align:left;">Modifica il budget totale</button>
 ${bud.aperto === '*' ? editorBudget('*', b.totalePeriodicita, b.totaleImporto) : ''}</section>
 ${mensili.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Mensili</h2><span class="small">${esc(MESI[b.mese - 1])}</span></div>${mensili.map(riga).join('')}</section>` : ''}
@@ -235,9 +251,12 @@ async function salvaBudgetUI_(id) {
   const importo = leggiImporto($('#budImporto').value || '0');
   if (!(importo >= 0)) { toast('Importo non valido', null, true); return; }
   try {
-    const b = await chiama('salvaBudget', { categoria_id: id, periodicita: S.bud.editPer, importo, valido_dal: $('#budDal').value });
+    const valido = $('#budDal').value;
+    const b = await chiama('salvaBudget', { categoria_id: id, periodicita: S.bud.editPer, importo, valido_dal: valido });
     datiModificati(); S.avvio.budget = b; S.bud.aperto = ''; renderBudget();
-    toast('Budget salvato');
+    const x = valido === `${b.anno}-${String(b.mese).padStart(2, '0')}` ? b : (b.prossimo || b);
+    if (x.totale && x.margine < 0) toast(`Salvato, ma da ${MESI[x.mese - 1]} le categorie (${euroTondo(x.somma)}) superano il totale (${euroTondo(x.totale)}) di ${euroTondo(-x.margine)}`, null, true);
+    else toast('Budget salvato');
     chiama('getAvvio').then(a => { S.avvio = a; indicizza(); }).catch(() => { });
   } catch (e) { errore(e); }
 }
