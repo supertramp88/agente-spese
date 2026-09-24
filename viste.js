@@ -36,6 +36,7 @@ function rigaBudget(r, conModifica) {
 <span class="badge" style="width:32px;height:32px;border-radius:9px;">${ic(ICONA_MACRO[r.id] || 'tag', 18)}</span>
 <span class="grow strong" style="font-size:15px;">${esc(r.nome)}</span>
 <span class="num" style="font-size:14px;">${euroTondo(r.speso)} di ${euroTondo(r.importo)}${annuale ? ' / anno' : ''}</span></div>
+${annuale ? '' : `<span class="small num" style="margin-top:-4px;">${euroTondo(r.importo)}/mese · ${euroTondo(r.importo * 12)}/anno</span>`}
 ${meterHtml(pct, r.sopra, tick, `${r.nome}: speso ${pct}% del budget ${annuale ? 'annuale' : 'mensile'}`)}
 <div style="display:flex;justify-content:${conModifica ? 'space-between' : 'flex-end'};align-items:center;">
 ${conModifica ? `<button type="button" class="link" data-azione="bud-modifica" data-v="${r.id}" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;">Modifica</button>` : ''}${stato}</div>
@@ -156,53 +157,47 @@ ${alt > 0 ? barraMese(x, bw, base, ty, r, budget && m.valore > budget ? y(budget
   svg += `<line x1="0" x2="${w - asse}" y1="${base}" y2="${base}" style="stroke:var(--bordo)"/></svg>`;
   return svg;
 }
-function categorieHtml(lista, totale, periodo) {
+function categorieHtml(lista, totale, periodo, budget) {
   const a = S.an;
+  budget = budget || {};
   if (!lista.length) return '<p class="vuoto">Nessuna spesa nel periodo</p>';
   const scala = Math.max(1, ...lista.map(c => c.valore));
+  const conCiambelle = Object.keys(budget).length > 0;
   return lista.map(c => {
     const aperta = a.aperte[c.id];
     return `<div style="border-bottom:1px solid var(--line2);">
-<button type="button" data-azione="an-apri" data-v="${c.id}" aria-expanded="${!!aperta}" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;padding:0;text-align:left;">${barreHtml([c], totale, scala)}</button>
+<button type="button" data-azione="an-apri" data-v="${c.id}" aria-expanded="${!!aperta}" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;padding:0;text-align:left;display:flex;align-items:center;gap:12px;">
+<span style="flex:1 1 auto;min-width:0;">${barreHtml([c], totale, scala)}</span>${conCiambelle ? `<span class="ciambella-posto">${budget[c.id] ? ciambellaHtml(c.valore, budget[c.id]) : ''}</span>` : ''}</button>
 ${aperta ? `<div class="pannello" style="padding:4px 12px;margin-bottom:8px;">${barreHtml(c.subs, c.valore)}
 <button type="button" class="link" data-azione="an-movimenti" data-v="${c.id}" data-periodo="${periodo}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Vedi i movimenti</button></div>` : ''}
 </div>`;
   }).join('');
 }
-/** Scheda "Budget" di Analisi: spesa rispetto al budget per le categorie che ne hanno uno, prima le mensili.
- *  Mese: mensili sul mese, annuali da gennaio (tacca = quota maturata). Anno: tutto da gennaio sul budget dell'anno. */
-function budgetAnalisiHtml(d, periodo) {
-  const voci = [];
+/** Budget per le ciambelle di "Dove vanno i soldi": importo del periodo e ritmo (quota del periodo già trascorsa).
+ *  Mese: budget del mese. Anno: somma dei budget dei mesi dell'anno (normalmente mensile × 12). */
+function budgetCiambelle(d, periodo) {
+  const out = {};
   if (periodo === 'mese' && d.budget) {
-    const frazione = d.corrente ? d.giornoLimite / new Date(d.anno, d.mese, 0).getDate() : 1;
-    d.budget.righe.forEach(r => voci.push(r.periodicita === 'ANNUALE'
-      ? { nome: r.nome, annuale: true, speso: r.speso, importo: r.importo, quota: r.maturato, sotto: 'annuale · da gennaio' }
-      : { nome: r.nome, annuale: false, speso: r.speso, importo: r.importo, quota: r.importo * frazione, sotto: 'mensile' }));
+    const ritmo = d.corrente ? d.giornoLimite / new Date(d.anno, d.mese, 0).getDate() : 1;
+    d.budget.righe.forEach(r => { if (r.importo) out[r.id] = { importo: r.importo, ritmo }; });
   }
   if (periodo === 'anno' && d.budgetAnno) {
-    const spese = Object.fromEntries(d.anno_.perMacro.map(c => [c.id, c.valore]));
-    const nomi = Object.fromEntries(S.avvio.categorie.map(c => [c.id, c.nome]));
     Object.keys(d.budgetAnno).forEach(id => {
-      const b = d.budgetAnno[id];
-      voci.push({ nome: nomi[id] || id, annuale: b.periodicita === 'ANNUALE', speso: spese[id] || 0, importo: b.importo, quota: b.quota,
-        sotto: b.periodicita === 'ANNUALE' ? 'annuale' : 'mensile · somma dei mesi' });
+      const x = d.budgetAnno[id];
+      if (x.importo) out[id] = { importo: x.importo, ritmo: x.quota / x.importo };
     });
   }
-  if (!voci.length) return '';
-  voci.sort((x, y) => (x.annuale - y.annuale) || (y.speso / y.importo - x.speso / x.importo));
-  const righe = voci.map(v => {
-    const pct = v.importo ? Math.round(v.speso / v.importo * 100) : 0;
-    const oltre = v.speso > v.importo, ritmo = !oltre && (v.speso > v.quota * 1.05 || pct >= 90);
-    const tacca = (v.annuale || periodo === 'anno') && v.importo ? Math.max(0, Math.min(100, Math.round(v.quota / v.importo * 100))) : null;
-    return `<div style="display:flex;flex-direction:column;gap:5px;padding:7px 0;border-bottom:1px solid var(--line2);">
-<div style="display:flex;justify-content:space-between;gap:8px;font-size:14px;"><span>${esc(v.nome)}</span>
-<span class="num"><span class="strong${oltre ? ' ko' : ''}">${euroTondo(v.speso)}</span><span class="small"> / ${euroTondo(v.importo)}</span></span></div>
-<div class="meter" role="img" aria-label="${esc(v.nome)}: ${pct}% del budget"><div class="fill${oltre ? ' over' : ritmo ? ' warn' : ''}" style="width:${Math.min(100, pct)}%;"></div>${tacca == null ? '' : `<div class="tick" style="left:${tacca}%;"></div>`}</div>
-<div class="small" style="display:flex;justify-content:space-between;gap:8px;"><span>${v.sotto}</span><span class="num${oltre ? ' ko strong' : ''}">${pct}%</span></div></div>`;
-  }).join('');
-  return `<section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Budget</h2>
-<a class="link" href="#" data-azione="vai" data-v="budget">Modifica</a></div>${righe}
-<span class="small" style="padding-top:6px;">${periodo === 'mese' ? 'Le annuali contano da gennaio; ' : ''}la tacca è la quota maturata a oggi.</span></section>`;
+  return out;
+}
+/** Piccola ciambella: quanto del budget è consumato. Verde in linea, arancione vicino al limite o sopra il ritmo,
+ *  rossa (piena) oltre il budget. Sopra, in grigio, il valore del budget. */
+function ciambellaHtml(speso, b) {
+  const r = 12, c = 2 * Math.PI * r, frazione = b.importo ? speso / b.importo : 0;
+  const colore = frazione > 1 ? 'var(--ko)' : (frazione >= 0.9 || speso > b.importo * b.ritmo * 1.05) ? 'var(--arancio)' : 'var(--acc)';
+  return `<span class="ciambella" title="${Math.round(frazione * 100)}% del budget di ${euro(b.importo)}">
+<span class="ciambella-budget num">${euroTondo(b.importo)}</span>
+<svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><circle cx="15" cy="15" r="${r}" fill="none" stroke-width="5" style="stroke:var(--track)"></circle>
+<circle cx="15" cy="15" r="${r}" fill="none" stroke-width="5" stroke-dasharray="${(c * Math.min(1, frazione)).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 15 15)" style="stroke:${colore}"></circle></svg></span>`;
 }
 /** Progetti del periodo: spesa del periodo e, per quelli con budget, totale del progetto / budget. */
 function progettiAnalisiHtml(lista, quando) {
@@ -225,8 +220,7 @@ ${riepilogoMeseHtml({ anno: d.anno, mese: d.mese, nome: nomeMese, speso: m.total
 <section class="card"><h2 class="h2">Ultimi 12 mesi</h2>${graficoMesi(d.mesi12, m.budget, d.corrente)}
 <span class="small">Tratteggio = budget mensile${m.budget ? ` (${euroTondo(m.budget)}); in rosso la parte oltre` : ''} · media ${euroTondo(d.mesi12.reduce((s, x) => s + x.valore, 0) / 12)} al mese · tocca una barra per aprire quel mese</span></section>
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">tocca per il dettaglio</span></div>
-${categorieHtml(m.perMacro, m.totale, 'mese')}</section>
-${budgetAnalisiHtml(d, 'mese')}
+${categorieHtml(m.perMacro, m.totale, 'mese', budgetCiambelle(d, 'mese'))}</section>
 ${m.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">Progetti nel mese</h2>${progettiAnalisiHtml(m.perProgetto, 'nel mese')}</section>` : ''}
 </div>`;
   } else {
@@ -244,8 +238,7 @@ ${rigaEsclusiHtml(y.totale, y.esclusi)}
 <div><span class="label" style="display:block;">Stesso periodo ${d.anno - 1}</span><span class="h2 num">${euroTondo(y.totalePrec)}</span></div></div>
 ${confrontoHtml(y.totale, y.totalePrec, `${d.anno - 1}`)}</section>
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">${d.anno}</span></div>
-${categorieHtml(y.perMacro, y.totale, 'anno')}</section>
-${budgetAnalisiHtml(d, 'anno')}
+${categorieHtml(y.perMacro, y.totale, 'anno', budgetCiambelle(d, 'anno'))}</section>
 ${salvadanaioHtml(y.salvadanaio, d)}
 ${y.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">Progetti nell'anno</h2>${progettiAnalisiHtml(y.perProgetto.slice(0, 10), 'nell’anno')}</section>` : ''}
 </div>`;
@@ -287,7 +280,7 @@ ${sommaBudgetHtml(b)}
 ${prossimoHtml('*', b.totalePeriodicita, b.totaleImporto)}
 <button type="button" class="link" data-azione="bud-modifica" data-v="*" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;text-align:left;">Modifica il budget totale</button>
 ${bud.aperto === '*' ? editorBudget('*', b.totalePeriodicita, b.totaleImporto) : ''}</section>
-${mensili.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Budget mensili</h2><span class="small">${esc(MESI[b.mese - 1])}</span></div>${mensili.map(riga).join('')}</section>` : ''}
+${mensili.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Budget per categoria</h2><span class="small">${esc(MESI[b.mese - 1])} · annuo = mensile × 12</span></div>${mensili.map(riga).join('')}</section>` : ''}
 ${annuali.length ? `<section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:4px;"><h2 class="h2">Budget annuali</h2><span class="small">da gennaio · tacca = quota a oggi</span></div>${annuali.map(riga).join('')}</section>` : ''}
 ${b.senza.length ? `<section class="card" style="gap:0;"><h2 class="h2" style="padding-bottom:4px;">Senza budget</h2>
 ${b.senza.map(c => `<div class="row"><span class="badge" style="width:32px;height:32px;border-radius:9px;">${ic(ICONA_MACRO[c.id] || 'tag', 18)}</span>
@@ -301,16 +294,15 @@ function editorBudget(id, periodicita, importo) {
   // se dal mese prossimo c'è già un valore diverso, si parte da quello (è il più recente)
   const n = budgetProssimo(id, periodicita, importo);
   if (n) { importo = n.importo; if (n.importo) periodicita = n.periodicita; }
-  if (bud.editPer === undefined || bud.editId !== id) { bud.editId = id; bud.editPer = periodicita || 'MENSILE'; }
+  bud.editId = id; bud.editPer = 'MENSILE';   // i budget sono solo mensili
+  if (periodicita === 'ANNUALE') { importo = importo / 12; }
   const questo = `${b.anno}-${String(b.mese).padStart(2, '0')}`;
   const pross = new Date(b.anno, b.mese, 1);
   const prossimo = `${pross.getFullYear()}-${String(pross.getMonth() + 1).padStart(2, '0')}`;
   return `<div class="pannello" style="padding:12px;display:flex;flex-direction:column;gap:10px;margin:8px 0;">
-<div class="field"><label class="label" for="budImporto">Importo${bud.editPer === 'ANNUALE' ? ' annuo' : ' mensile'}</label>
+<div class="field"><label class="label" for="budImporto">Importo mensile (annuo = × 12)</label>
 <input id="budImporto" class="input num" inputmode="decimal" value="${esc(importo ? String(importo).replace('.', ',') : '')}" placeholder="0 = nessun budget"></div>
-<div class="seg two" role="group" aria-label="Periodicità">
-<button type="button" class="${bud.editPer === 'MENSILE' ? 'on' : ''}" data-azione="bud-per" data-v="MENSILE">Mensile</button>
-<button type="button" class="${bud.editPer === 'ANNUALE' ? 'on' : ''}" data-azione="bud-per" data-v="ANNUALE">Annuale</button></div>
+
 <div class="field"><label class="label" for="budDal">Valido dal</label>
 <select id="budDal" class="input"><option value="${questo}">${maiusc(MESI[b.mese - 1])} ${b.anno} (questo mese)</option>
 <option value="${prossimo}"${n ? ' selected' : ''}>${maiusc(MESI[pross.getMonth()])} ${pross.getFullYear()} (dal prossimo mese)</option></select></div>
@@ -641,10 +633,9 @@ ${blocco('Progetti', 'folder', [
 ], `<b>Nota su viaggi e progetti.</b> Di default le loro spese <b>non pesano</b> sul budget mensile (${totale}), sulla Home e sui report: le vedi solo nel progetto. Per farle contare, nel progetto disattiva <i>Escludi dai totali personali</i>.`)}
 ${blocco('Budget', 'chart', [
   `<b>Totale ${totale}/mese</b> per le spese personali (viaggi esclusi).`,
-  '<b>Mensili</b> ripartono ogni mese. <b>Annuali</b> contano da gennaio: la tacca è la quota maturata a oggi.',
-  'Ogni budget può essere <b>mensile o annuale</b>: Altro → Budget → Modifica → <i>Mensile</i> / <i>Annuale</i>. Annuale per le spese a picchi (regali, tasse, acquisti grossi).',
-  '<b>Analisi → Budget</b>: spesa rispetto al budget, prima le mensili e poi le annuali (da gennaio; la tacca è la quota maturata a oggi).',
-  '<b>Categorie ≤ totale</b> (le annuali contano 1/12): se lo superano compare un avviso rosso in Analisi.',
+  'Tutti i budget sono <b>mensili</b>; l’annuo è il mensile × 12. Le voci a picchi (regali, tasse…) sforano in qualche mese e restano a zero negli altri: è normale.',
+  '<b>Analisi → Dove vanno i soldi</b>: la ciambella a destra è il budget consumato (in grigio il budget). Verde in linea, arancione vicino o sopra il ritmo, rossa oltre. In Anno: budget dell’anno.',
+  '<b>Categorie ≤ totale</b>: se la somma dei budget supera il totale compare un avviso rosso in Analisi.',
   'Una modifica vale da questo mese o dal prossimo: i mesi passati restano con il budget di allora.',
   '<span class="ok strong">Verde</span> in linea · <span style="color:var(--warn);font-weight:600;">ocra</span> vicino o sopra il ritmo · <span class="ko strong">rosso</span> oltre.',
 ])}
@@ -742,7 +733,6 @@ function azioneViste(a, el) {
   }
   // Budget
   if (a === 'bud-modifica') { S.bud.aperto = S.bud.aperto === v ? '' : v; S.bud.editId = undefined; S.bud.editPer = undefined; renderBudget(); return true; }
-  if (a === 'bud-per') { const imp = $('#budImporto').value; S.bud.editPer = v; renderBudget(); $('#budImporto').value = imp; return true; }
   if (a === 'bud-chiudi') { S.bud.aperto = ''; renderBudget(); return true; }
   if (a === 'bud-salva') { salvaBudgetUI(v); return true; }
   // Progetti
