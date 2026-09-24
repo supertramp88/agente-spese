@@ -690,7 +690,13 @@ async function avviaApp() {
       memoria.togli();
     } else memoria.togli();
   } catch (e) {
-    $('#vista').innerHTML = `<div class="vuoto"><p class="ko strong">Impossibile caricare i dati</p><p class="small">${esc(e.message)}</p></div>`;
+    const api = Config.leggi().api || '';
+    $('#vista').innerHTML = `<div class="vuoto"><p class="ko strong">Impossibile caricare i dati</p><p class="small">${esc(e.message)}</p>
+<p class="small" style="word-break:break-all;">Server: ${esc(api)}</p>
+<div style="display:flex;gap:8px;justify-content:center;"><button type="button" class="btn" id="eRiprova">Riprova</button>
+<button type="button" class="btn sec" id="eCollega">Controlla il collegamento</button></div></div>`;
+    $('#eRiprova').onclick = () => location.reload();
+    $('#eCollega').onclick = () => renderCollega();
   }
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', avviaApp);
@@ -727,6 +733,7 @@ ${messaggio ? `<p class="small ko" style="margin:0;">${esc(messaggio)}</p>` : ''
       const p = new URLSearchParams(link);
       chiave = p.get('chiave') || ''; api = p.get('api') || api;
     }
+    if (/\/dev\/?$/.test(api)) { renderCollega('Questo è l’indirizzo di prova (/dev): serve quello del deployment, che finisce con /exec.'); return; }
     Config.salva({ api, chiave });
     $('#cSalva').disabled = true; $('#cSalva').textContent = 'Verifica…';
     try { await chiama('getAvvio'); location.reload(); }

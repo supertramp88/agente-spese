@@ -44,7 +44,10 @@ async function chiama(fn, ...args) {
       signal: controllo.signal,
     });
   } catch (e) {
-    throw new Error(e.name === 'AbortError' ? 'Il server non ha risposto in tempo.' : 'Connessione non riuscita: controlla la rete e riprova.');
+    if (e.name === 'AbortError') throw new Error('Il server non ha risposto in tempo.');
+    if (navigator.onLine === false) throw new Error('Sei offline: controlla la rete e riprova.');
+    // Rete presente ma risposta bloccata: di solito il deployment non è "Chiunque" o non ha la versione con Api.gs
+    throw new Error('Il server non risponde all’app. Se succede sempre: in Apps Script il deployment deve essere accessibile a “Chiunque” e aggiornato a una nuova versione che contiene Api.gs; l’indirizzo deve finire con /exec.');
   } finally {
     clearTimeout(timer);
   }
