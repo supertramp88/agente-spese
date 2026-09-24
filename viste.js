@@ -131,7 +131,7 @@ function homeProgettiHtml() {
   if (!p.length) return '';
   return `<section class="card" aria-label="Progetti attivi">
 <div class="sechead"><h2 class="h2">Progetti attivi</h2><a class="link" href="#" data-azione="vai" data-v="progetti">Tutti</a></div>
-<div>${p.slice(0, 6).map(x => `<button type="button" class="row" data-azione="prog-movimenti" data-v="${x.id}" style="width:100%;border-left:0;border-right:0;border-top:0;background:transparent;font:inherit;cursor:pointer;text-align:left;min-height:44px;">
+<div>${p.slice(0, 6).map(x => `<button type="button" class="row" data-azione="prog-apri" data-v="${x.id}" style="width:100%;border-left:0;border-right:0;border-top:0;background:transparent;font:inherit;cursor:pointer;text-align:left;min-height:44px;">
 <span class="grow" style="font-size:15px;">${esc(x.nome)}</span><span class="num strong" style="font-size:15px;">${x.budget ? `${euroTondo(x.totale)} <span class="small">/ ${euroTondo(x.budget)}</span>` : euroTondo(x.anno)}</span></button>`).join('')}</div>
 <span class="small">Speso nel ${S.avvio.mese.anno}${p.some(x => x.budget) ? '; con budget: totale / budget' : ''}</span>
 </section>`;
@@ -335,6 +335,88 @@ async function salvaBudgetUI_(id) {
 }
 
 // ------------------------------------------------------------------ PROGETTI
+// ------------------------------------------------------------------ SCHEDA PROGETTO
+/** Riepilogo di un progetto, come quello del mese: spesa sul budget, andamento, categorie, movimenti. */
+function renderProgetto() {
+  const id = S.progId, k = `prog:${id}`;
+  const d = memoDati(k);
+  if (d) disegnaProgetto(d);
+  else $('#vista').innerHTML = `${intestazione('Progetto', S.progDa || 'progetti')}${caricamento()}`;
+  if (!memoFresco(k)) {
+    recupera(k, 'getProgetto', id)
+      .then(x => { if (S.vista === 'progetto' && S.progId === id) disegnaProgetto(x); })
+      .catch(e => { if (S.vista === 'progetto' && S.progId === id) erroreCaricamento(e); });
+  }
+}
+function disegnaProgetto(d) {
+  const p = d.progetto, b = Number(p.budget_totale) || 0;
+  const pct = b ? Math.round(d.totale / b * 100) : 0, sopra = b && d.totale > b;
+  let quota = 0;   // anello interno: parte del periodo del progetto già trascorsa
+  if (d.inizio && d.fine && d.durata) {
+    quota = Math.max(0, Math.min(100, Math.round(((daIso(S.avvio.oggi) - daIso(d.inizio)) / 864e5 + 1) / d.durata * 100)));
+  }
+  const periodo = periodoProg(p) || (d.primo ? `${breveGiorno(d.primo)} – ${breveGiorno(d.ultimo)}` : '');
+  const destra = `<button type="button" class="chip" data-azione="prog-modifica-scheda" data-v="${p.id}" style="min-height:44px;flex-shrink:0;">Modifica</button>`;
+  $('#vista').innerHTML = `${intestazione(p.nome, S.progDa || 'progetti', destra)}
+<main class="scroll">
+<section class="card" aria-label="Riepilogo del progetto">
+${b ? `<div class="anello">${anelloHtml(pct, quota, sopra)}
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">${esc(nomeTipoProg(p.tipo))}</span>
+<span class="hero num${sopra ? ' ko' : ''}">${euroTondo(d.totale)}</span><span class="label num">su ${euroTondo(b)}</span>
+<span class="small strong ${sopra ? 'ko' : 'ok'}">${sopra ? `${euroTondo(d.totale - b)} oltre il budget` : `Restano ${euroTondo(b - d.totale)}`}</span></div></div>`
+  : `<span class="cap">${esc(nomeTipoProg(p.tipo))}</span><span class="hero num">${euroTondo(d.totale)}</span>
+<span class="small">Nessun budget: aggiungilo con Modifica per vedere quanto resta.</span>`}
+<div class="divider"></div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+<div><span class="label" style="display:block;">Periodo${d.durata ? ` · ${d.durata} giorn${d.durata === 1 ? 'o' : 'i'}` : ''}</span><span class="strong" style="font-size:14px;">${esc(periodo || '—')}</span></div>
+<div><span class="label" style="display:block;">${d.durata ? 'Media al giorno' : 'Movimenti'}</span><span class="h2 num">${d.durata ? euroTondo(d.totale / d.durata) : d.conteggio}</span></div></div>
+${d.rimborsi ? `<span class="small">Spese ${euro(d.spese)} · rimborsi −${euro(d.rimborsi)}</span>` : ''}
+<span class="small">${d.conteggio} moviment${d.conteggio === 1 ? 'o' : 'i'} · ${p.escludi_da_totali ? 'escluso dai totali personali' : 'conta nei totali personali'}${p.stato !== 'ATTIVO' ? ' · ' + (p.stato === 'CHIUSO' ? 'chiuso' : 'archiviato') : ''}</span>
+</section>
+${d.andamento ? `<section class="card"><div class="sechead"><h2 class="h2">Andamento</h2><span class="small">per ${d.andamento.tipo}</span></div>
+${graficoProgetto(d.andamento)}
+${d.andamento.voci.some(v => v.fuori) ? '<span class="small">"prima" e "dopo": spese fuori dalle date del progetto (acconti, prenotazioni, code).</span>' : ''}</section>` : ''}
+<section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">tocca per il dettaglio</span></div>
+${d.perMacro.length ? categorieProgettoHtml(d) : '<p class="vuoto">Nessuna spesa</p>'}</section>
+<section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Ultimi movimenti</h2>
+<a class="link" href="#" data-azione="prog-movimenti" data-v="${p.id}">Tutti</a></div>
+<div>${d.ultimi.length ? d.ultimi.map(m => rigaMovimento(m, true, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div></section>
+</main>`;
+}
+/** Barre dell'andamento del progetto (giorni o mesi); "prima"/"dopo" in tinta più chiara. */
+function graficoProgetto(a) {
+  const voci = a.voci, n = voci.length, w = 358, h = 176, top = 22, base = 146, passo = w / n;
+  const bw = Math.max(3, Math.min(22, passo * 0.7));
+  const max = Math.max(1, ...voci.map(v => v.valore)) * 1.15;
+  const y = v => base - (base - top) * Math.max(0, v) / max;
+  const ogni = n <= 16 ? 1 : n <= 31 ? 2 : Math.ceil(n / 12);
+  const iMax = voci.reduce((im, v, i) => v.valore > voci[im].valore ? i : im, 0);
+  let svg = `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Spese del progetto per ${a.tipo}">`;
+  voci.forEach((v, i) => {
+    const x = i * passo + (passo - bw) / 2, ty = y(v.valore), alt = Math.max(0, base - ty), r = Math.min(3, alt);
+    svg += `<g><title>${esc(v.data ? (a.tipo === 'settimana' ? 'settimana dal ' : '') + breveGiorno(v.data) : v.etichetta)}: ${euro(v.valore)}</title>`;
+    if (alt > 0) svg += barraMese(x, bw, base, ty, r, null, v.fuori ? 'var(--barLeggera)' : 'var(--acc)');
+    if (v.fuori || i % ogni === 0) svg += `<text x="${x + bw / 2}" y="${base + 15}" text-anchor="middle" font-size="${v.fuori ? 9 : 10}" style="fill:var(--tx2)">${esc(v.etichetta)}</text>`;
+    svg += '</g>';
+  });
+  const mx = voci[iMax];
+  if (mx.valore > 0) svg += `<text x="${Math.min(w - 26, Math.max(26, iMax * passo + passo / 2))}" y="${y(mx.valore) - 6}" text-anchor="middle" font-size="11" font-weight="600" paint-order="stroke" stroke-width="3" style="fill:var(--tx);stroke:var(--card)">${euroTondo(mx.valore)}</text>`;
+  return svg + `<line x1="0" x2="${w}" y1="${base}" y2="${base}" style="stroke:var(--bordo)"/></svg>`;
+}
+/** Categorie del progetto: barra per macro-categoria, tocca per aprire le sotto-categorie. */
+function categorieProgettoHtml(d) {
+  const tot = d.totale || 1, max = d.perMacro[0].valore || 1;
+  return d.perMacro.map(c => `<div style="padding:8px 0;border-bottom:1px solid var(--line2);display:flex;flex-direction:column;gap:6px;">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:14px;">
+<button type="button" class="budnome" data-azione="prog-cat-apri" data-v="${c.id}" aria-expanded="false" aria-controls="psub-${c.id}">
+<span style="font-weight:500;">${esc(c.nome)}</span><span class="freccia">${ic('down', 14, 2.2)}</span></button>
+<span class="num"><span class="strong">${euro(c.valore)}</span> <span class="small">${Math.round(c.valore / tot * 100)}%</span></span></div>
+<div class="meter" style="background:transparent;"><div class="fill" style="width:${Math.max(1, Math.round(c.valore / max * 100))}%;"></div></div>
+<div id="psub-${c.id}" class="pannello budsub" hidden>${c.subs.map(x => `<div style="display:flex;justify-content:space-between;gap:8px;">
+<span>${esc(x.nome)}</span><span class="num">${euro(x.valore)} <span class="small">${c.valore ? Math.round(x.valore / c.valore * 100) : 0}%</span></span></div>`).join('')}
+<button type="button" class="link" data-azione="prog-cat-movimenti" data-v="${c.id}" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;text-align:left;">Vedi i movimenti</button></div></div>`).join('');
+}
+
 const TIPI_PROG = [['VIAGGIO', 'Viaggio'], ['VEICOLO', 'Veicolo'], ['LUOGO', 'Luogo'], ['PERCORSO', 'Percorso'], ['ATTIVITA', 'Attività'], ['PROGETTO', 'Progetto']];
 const nomeTipoProg = t => (TIPI_PROG.find(x => x[0] === t) || [t, t])[1];
 function periodoProg(p) {
@@ -376,12 +458,13 @@ function cardProgetto(p) {
   const meter = p.budget_totale ? `${meterHtml(Math.round(p.totale / p.budget_totale * 100), p.totale > p.budget_totale, null, `${p.nome}: speso ${Math.round(p.totale / p.budget_totale * 100)}% del budget`)}
 <span class="small num">${euro(p.totale)} di ${euro(p.budget_totale)} · ${p.totale > p.budget_totale ? `<span class="ko strong">${euro(p.totale - p.budget_totale)} oltre</span>` : `restano ${euro(p.budget_totale - p.totale)}`}</span>` : '';
   return `<section class="card">
-<div style="display:flex;align-items:center;gap:12px;"><span class="badge">${ic({ VIAGGIO: 'plane', VEICOLO: 'moto', LUOGO: 'house', PERCORSO: 'tool', ATTIVITA: 'brief' }[p.tipo] || 'folder', 20)}</span>
+<div style="display:flex;align-items:center;gap:12px;cursor:pointer;" data-azione="prog-apri" data-v="${p.id}"><span class="badge">${ic({ VIAGGIO: 'plane', VEICOLO: 'moto', LUOGO: 'house', PERCORSO: 'tool', ATTIVITA: 'brief' }[p.tipo] || 'folder', 20)}</span>
 <span class="grow"><span class="strong" style="display:block;font-size:16px;">${esc(p.nome)}</span><span class="small">${nomeTipoProg(p.tipo)}${periodoProg(p) ? ' · ' + periodoProg(p) : ''}${p.stato === 'ARCHIVIATO' ? ' · archiviato' : ''}</span></span>
 <span class="num strong" style="font-size:16px;">${euroTondo(p.stato === 'ATTIVO' && !p.budget_totale ? p.totaleAnno : p.totale)}</span></div>
 ${p.stato === 'ATTIVO' && !p.budget_totale ? `<span class="small">nel ${anno} · ${euro(p.totale)} dall'inizio · ${p.conteggio} movimenti</span>` : `<span class="small">${p.conteggio} movimenti${p.escludi_da_totali ? ' · escluso dai totali personali' : ''}</span>`}
 ${meter}
-<div style="display:flex;gap:16px;"><button type="button" class="link" data-azione="prog-movimenti" data-v="${p.id}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Movimenti</button>
+<div style="display:flex;gap:16px;"><button type="button" class="link" data-azione="prog-apri" data-v="${p.id}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Riepilogo</button>
+<button type="button" class="link" data-azione="prog-movimenti" data-v="${p.id}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Movimenti</button>
 <button type="button" class="link" data-azione="prog-modifica" data-v="${p.id}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Modifica</button></div>
 </section>`;
 }
@@ -551,6 +634,7 @@ ${blocco('Registrare', 'plus', [
 ])}
 ${blocco('Progetti', 'folder', [
   'Raccolgono le spese di un viaggio, un veicolo, un lavoro… La categoria resta quella della spesa.',
+  '<b>Tocca un progetto</b> (in Progetti o in Home) per il suo riepilogo: spesa sul budget, andamento, categorie.',
   '<b>Viaggi: sempre in un progetto</b>, con il suo budget.',
   'Viaggio finito → <b>Chiudi</b>. Spese arrivate dopo: nel modulo, <i>Altri progetti</i>.',
   '<b>Salvadanaio</b> (Analisi → Anno): quanto hai risparmiato sul budget meno quanto hai speso in viaggi e progetti esclusi.',
@@ -665,6 +749,26 @@ function azioneViste(a, el) {
   if (a === 'prog-nuovo') {
     S.prog.form = { id: '', nome: '', tipo: 'PROGETTO', data_inizio: S.avvio.oggi, data_fine: '', budget_totale: '', stato: 'ATTIVO', escludi_da_totali: true, note: '' };   // i progetti nuovi nascono fuori dai totali personali
     renderProgetti(); return true;
+  }
+  if (a === 'prog-apri') {
+    if (S.vista !== 'progetto') S.progDa = ['home', 'progetti'].includes(S.vista) ? S.vista : 'progetti';
+    S.progId = v; S.tornaA = 'progetto'; vai('progetto'); return true;
+  }
+  if (a === 'prog-cat-apri') {
+    const box = document.getElementById('psub-' + v), aperta = box && box.hidden;
+    if (box) box.hidden = !aperta;
+    el.setAttribute('aria-expanded', !!aperta); return true;
+  }
+  if (a === 'prog-cat-movimenti') {
+    S.mov = { anno: S.avvio.mese.anno, mese: S.avvio.mese.mese, testo: '', dati: null, filtri: { progetto: S.progId, categoria: v, tutto: true } };
+    S.tornaA = 'progetto'; vai('movimenti'); return true;
+  }
+  if (a === 'prog-modifica-scheda') {
+    const d = memoDati(`prog:${v}`);
+    if (!S.prog) S.prog = { tab: 'attivi', form: null, lista: null };
+    S.prog.form = Object.assign({}, d.progetto, { conteggio: d.conteggio });
+    S.prog.tab = d.progetto.stato === 'ATTIVO' ? 'attivi' : 'chiusi';
+    vai('progetti'); if ($('.scroll')) $('.scroll').scrollTop = 0; return true;
   }
   if (a === 'prog-modifica') {
     const p = S.prog.lista.find(x => x.id === v);

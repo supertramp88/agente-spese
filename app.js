@@ -168,12 +168,13 @@ function vai(vista, opzioni) {
   else if (vista === 'progetti') renderProgetti();
   else if (vista === 'altro') renderAltro();
   else if (vista === 'info') renderInfo();
+  else if (vista === 'progetto') renderProgetto();
   renderNav();
   // cronologia del browser: il tasto "indietro" del telefono torna alla schermata precedente
   if (!history.state || history.state.vista === vista) history.replaceState({ vista }, '');
   else history.pushState({ vista }, '');
 }
-const sezioneNav = () => ['budget', 'progetti', 'info'].includes(S.vista) ? 'altro' : S.vista;
+const sezioneNav = () => ['budget', 'progetti', 'info', 'progetto'].includes(S.vista) ? 'altro' : S.vista;
 function renderNav() {
   const nav = $('#nav');
   nav.hidden = S.vista === 'form';
@@ -199,13 +200,13 @@ const errore = e => e instanceof ErroreCollegamento
   : toast((e && e.message) || String(e), null, true);
 
 // ------------------------------------------------------------------ riga movimento
-function rigaMovimento(m, conGiorno) {
+function rigaMovimento(m, conGiorno, senzaProgetto) {
   const negativo = m.tipo !== 'SPESA';
   const segno = negativo ? '−' : '';
   const colore = negativo ? ' style="color: var(--ok);"' : '';
   const quando = conGiorno ? [breveGiorno(m.data), m.ora].filter(Boolean).join(' ') : (m.ora || '');
   const dett = [quando, m.tipo === 'RIMBORSO' ? 'Rimborso' : m.tipo === 'ENTRATA' ? 'Entrata' : '',
-    nomeCat(m.categoria_id), nomeProg(m.progetto_id),
+    nomeCat(m.categoria_id), senzaProgetto ? '' : nomeProg(m.progetto_id),
     m.rimborsabile === 'DA_RIMBORSARE' ? 'da rimborsare' : m.rimborsabile === 'AZIENDA' ? 'pagata dall’azienda' : ''].filter(Boolean).join(' · ');
   return `<a class="row" href="#" data-azione="modifica" data-id="${esc(m.id)}">
 <span class="badge">${ic(iconaCat(m.categoria_id), 20)}</span>
@@ -874,6 +875,7 @@ ${messaggio ? `<p class="small ko" style="margin:0;">${esc(messaggio)}</p>` : ''
 function vaiSenzaStorico(v) {
   if (v === 'home') renderHome(); else if (v === 'movimenti') apriMovimenti(); else if (v === 'form') renderForm();
   else if (v === 'analisi') renderAnalisi(); else if (v === 'budget') renderBudget();
-  else if (v === 'progetti') renderProgetti(); else if (v === 'info') renderInfo(); else renderAltro();
+  else if (v === 'progetti') renderProgetti(); else if (v === 'info') renderInfo();
+  else if (v === 'progetto' && S.progId) renderProgetto(); else renderAltro();
   renderNav();
 }

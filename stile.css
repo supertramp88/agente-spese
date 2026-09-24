@@ -118,8 +118,8 @@ select.input{appearance:auto}
   .scroll{padding:8px 32px 40px}
   .azioni{padding:14px 32px 18px}
   /* due colonne */
-  [data-vista="home"] .scroll,[data-vista="altro"] .scroll,[data-vista="info"] .scroll,[data-vista="budget"] .scroll{display:block;columns:2 400px;column-gap:20px}
-  [data-vista="home"] .scroll>*,[data-vista="altro"] .scroll>*,[data-vista="info"] .scroll>*,[data-vista="budget"] .scroll>*{break-inside:avoid;margin:0 0 20px;width:100%;box-sizing:border-box}
+  [data-vista="home"] .scroll,[data-vista="altro"] .scroll,[data-vista="info"] .scroll,[data-vista="budget"] .scroll,[data-vista="progetto"] .scroll{display:block;columns:2 400px;column-gap:20px}
+  [data-vista="home"] .scroll>*,[data-vista="altro"] .scroll>*,[data-vista="info"] .scroll>*,[data-vista="budget"] .scroll>*,[data-vista="progetto"] .scroll>*{break-inside:avoid;margin:0 0 20px;width:100%;box-sizing:border-box}
   [data-vista="home"] .scroll>button.link{column-span:all;display:inline-flex;width:auto}
   [data-vista="analisi"] #anCorpo>div{display:block !important;columns:2 400px;column-gap:20px}
   [data-vista="analisi"] #anCorpo>div>*{break-inside:avoid;margin:0 0 20px;box-sizing:border-box}
