@@ -278,7 +278,8 @@ function renderProgetti() {
   if (!memoFresco('progetti')) {
     recupera('progetti', 'getProgetti').then(l => {
       pr.lista = l;
-      if (S.vista === 'progetti' && !pr.form) disegnaProgetti();   // con il modulo aperto non si ridisegna
+      // con il modulo già a schermo non si ridisegna (si perderebbe ciò che si sta scrivendo)
+      if (S.vista === 'progetti' && (!pr.form || !$('#pNome'))) disegnaProgetti();
     }).catch(errore);
   }
   if (!pr.lista) { $('#vista').innerHTML = `${intestazione('Progetti', 'altro', PROG_DESTRA())}${caricamento()}`; return; }
@@ -537,7 +538,7 @@ function azioneViste(a, el) {
   // Progetti
   if (a === 'prog-tab') { S.prog.tab = v; renderProgetti(); return true; }
   if (a === 'prog-nuovo') {
-    S.prog.form = { id: '', nome: '', tipo: 'PROGETTO', data_inizio: S.avvio.oggi, data_fine: '', budget_totale: '', stato: 'ATTIVO', escludi_da_totali: false, note: '' };
+    S.prog.form = { id: '', nome: '', tipo: 'PROGETTO', data_inizio: S.avvio.oggi, data_fine: '', budget_totale: '', stato: 'ATTIVO', escludi_da_totali: true, note: '' };   // i progetti nuovi nascono fuori dai totali personali
     renderProgetti(); return true;
   }
   if (a === 'prog-modifica') {
