@@ -214,9 +214,30 @@ ${m.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">
 ${confrontoHtml(y.totale, y.totalePrec, `${d.anno - 1}`)}</section>
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">${d.anno}</span></div>
 ${categorieHtml(y.perMacro, y.totale, 'anno')}</section>
+${salvadanaioHtml(y.salvadanaio, d)}
 ${y.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">Progetti nell'anno</h2>${barreHtml(y.perProgetto.slice(0, 10))}</section>` : ''}
 </div>`;
   }
+}
+
+/** Salvadanaio viaggi: risparmio sul budget totale contro spese dei progetti esclusi dai totali. */
+function salvadanaioHtml(s, d) {
+  if (!s) return '';
+  const segno = v => (v > 0 ? '+' : v < 0 ? '−' : '') + euroTondo(Math.abs(v));
+  const riga = (t, v, cls, forte) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:15px;${forte ? 'font-weight:700;' : ''}">
+<span>${t}</span><span class="num ${cls || ''}">${v}</span></div>`;
+  const fino = d.corrente ? 'a oggi' : `a fine ${MESI[d.mese - 1]}`;
+  return `<section class="card" aria-label="Salvadanaio viaggi" style="gap:10px;">
+<div class="sechead"><h2 class="h2">Salvadanaio viaggi</h2><span class="small">da gennaio ${fino}</span></div>
+${riga(s.risparmiato >= 0 ? 'Risparmiato sul budget' : 'Speso oltre il budget', segno(s.risparmiato), s.risparmiato >= 0 ? 'ok' : 'ko')}
+${riga('Viaggi e progetti esclusi', s.viaggi ? '−' + euroTondo(s.viaggi) : euroTondo(0))}
+<div class="divider"></div>
+${riga('Saldo', segno(s.saldo), s.saldo >= 0 ? 'ok' : 'ko', true)}
+<span class="small">${s.saldo >= 0 ? 'I viaggi sono coperti da quanto hai risparmiato.' : 'I viaggi costano più di quanto hai risparmiato sul budget.'}
+Budget maturato ${euroTondo(s.maturato)} − spesa personale ${euroTondo(s.speso)}.</span>
+${s.progetti.length ? `<div>${s.progetti.slice(0, 6).map(p => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:4px 0;border-top:1px solid var(--line2);">
+<span>${esc(p.nome)}</span><span class="num">${euroTondo(p.valore)}</span></div>`).join('')}</div>` : '<span class="small">Nessuna spesa in progetti esclusi quest’anno.</span>'}
+</section>`;
 }
 
 // ------------------------------------------------------------------ BUDGET
@@ -498,6 +519,7 @@ ${blocco('Progetti', 'folder', [
   'Raccolgono le spese di un viaggio, un veicolo, un lavoro… La categoria resta quella della spesa.',
   '<b>Viaggi: sempre in un progetto</b>, con il suo budget.',
   'Viaggio finito → <b>Chiudi</b>. Spese arrivate dopo: nel modulo, <i>Altri progetti</i>.',
+  '<b>Salvadanaio viaggi</b> (Analisi → Anno): quanto hai risparmiato sul budget meno quanto hai speso in viaggi.',
 ], `<b>Nota su viaggi e progetti.</b> Di default le loro spese <b>non pesano</b> sul budget mensile (${totale}), sulla Home e sui report: le vedi solo nel progetto. Per farle contare, nel progetto disattiva <i>Escludi dai totali personali</i>.`)}
 ${blocco('Budget', 'chart', [
   `<b>Totale ${totale}/mese</b> per le spese personali (viaggi esclusi).`,
