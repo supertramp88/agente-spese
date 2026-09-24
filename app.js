@@ -203,7 +203,8 @@ function rigaMovimento(m, conGiorno) {
   const negativo = m.tipo !== 'SPESA';
   const segno = negativo ? '−' : '';
   const colore = negativo ? ' style="color: var(--ok);"' : '';
-  const dett = [conGiorno ? breveGiorno(m.data) : '', m.tipo === 'RIMBORSO' ? 'Rimborso' : m.tipo === 'ENTRATA' ? 'Entrata' : '',
+  const quando = conGiorno ? [breveGiorno(m.data), m.ora].filter(Boolean).join(' ') : (m.ora || '');
+  const dett = [quando, m.tipo === 'RIMBORSO' ? 'Rimborso' : m.tipo === 'ENTRATA' ? 'Entrata' : '',
     nomeCat(m.categoria_id), nomeProg(m.progetto_id),
     m.rimborsabile === 'DA_RIMBORSARE' ? 'da rimborsare' : m.rimborsabile === 'AZIENDA' ? 'pagata dall’azienda' : ''].filter(Boolean).join(' · ');
   return `<a class="row" href="#" data-azione="modifica" data-id="${esc(m.id)}">
@@ -378,10 +379,14 @@ function disegnaMovimenti(r) {
 }
 
 // ------------------------------------------------------------------ FORM (nuovo / modifica / scontrino)
+const oraAdesso = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 function nuovoForm(base) {
+  // ora: quella attuale per le spese di oggi; vuota (da inserire se serve) per ieri o un'altra data
+  const oggi = !base || !base.dataScelta || base.dataScelta === 'oggi';
   return Object.assign({
     id: '', tipo: 'SPESA', importo: '', descrizione: '', categoria_id: '', progetto_id: '',
-    dataScelta: 'oggi', data: S.avvio.oggi, note: '', rimborsabile: '', importo_orig: '', valuta_orig: '',
+    dataScelta: 'oggi', data: S.avvio.oggi, ora: oggi ? oraAdesso() : '', oraManuale: false,
+    note: '', rimborsabile: '', importo_orig: '', valuta_orig: '',
     allegato_url: '', fonte: 'APP', altro: false, tutte: false, catManuale: false, letti: {}, lettura: null,
   }, base || {});
 }
@@ -389,7 +394,7 @@ function apriNuovo(base) { S.form = nuovoForm(base); vai('form'); }
 function apriModifica(m) {
   const dataScelta = m.data === S.avvio.oggi ? 'oggi' : m.data === ieriIso() ? 'ieri' : 'altra';
   S.form = nuovoForm(Object.assign({}, m, {
-    importo: importoTesto(m.importo), dataScelta, catManuale: true,
+    importo: importoTesto(m.importo), dataScelta, catManuale: true, ora: m.ora || '', oraManuale: true,
     altro: !!(m.note || m.rimborsabile || m.valuta_orig), importo_orig: m.importo_orig === '' ? '' : String(m.importo_orig),
   }));
   vai('form');
@@ -441,6 +446,7 @@ function leggiCampi() {
   if (v('#fImporto') !== undefined) f.importo = v('#fImporto');
   if (v('#fDescr') !== undefined) f.descrizione = v('#fDescr');
   if (v('#fDataAltra') !== undefined && f.dataScelta === 'altra') f.data = v('#fDataAltra') || f.data;
+  if (v('#fOra') !== undefined) f.ora = v('#fOra');
   if (v('#fNote') !== undefined) f.note = v('#fNote');
   if (v('#fImpOrig') !== undefined) f.importo_orig = v('#fImpOrig');
   if (v('#fValuta') !== undefined) f.valuta_orig = v('#fValuta');
@@ -466,7 +472,10 @@ ${f.tutte ? `<div class="card" style="gap:14px;margin-top:4px;">${macro.map(m =>
     el.innerHTML = `<div class="sechead"><span class="cap">Data</span>${pill('data')}</div>
 <div class="chips">${[['oggi', 'Oggi'], ['ieri', 'Ieri'], ['altra', 'Altra data']].map(([id, t]) =>
       `<button type="button" class="chip${f.dataScelta === id ? ' on' : ''}" data-azione="data" data-v="${id}" aria-pressed="${f.dataScelta === id}">${t}</button>`).join('')}</div>
-${f.dataScelta === 'altra' ? `<input id="fDataAltra" class="input${f.letti.data === 'dubbio' ? ' dubbio' : ''}" type="date" aria-label="Data del movimento" value="${esc(f.data)}" max="${esc(S.avvio.oggi)}">` : ''}`;
+<div style="display:flex;gap:10px;align-items:flex-end;">
+${f.dataScelta === 'altra' ? `<input id="fDataAltra" class="input${f.letti.data === 'dubbio' ? ' dubbio' : ''}" type="date" aria-label="Data del movimento" value="${esc(f.data)}" max="${esc(S.avvio.oggi)}" style="flex:1 1 auto;min-width:0;">` : ''}
+<div class="field" style="flex:0 0 130px;"><label class="label" for="fOra">Ora${f.letti.ora ? ' · letta' : ''}</label>
+<input id="fOra" class="input" type="time" value="${esc(f.ora || '')}" aria-label="Ora del movimento"></div></div>`;
   } else if (nome === 'Progetto') {
     const lista = progettiProponibili(f.data);
     // chiusi e archiviati: i più recenti per primi (di solito serve quello appena chiuso)
@@ -527,7 +536,7 @@ async function salva(poi) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data || '')) { toast('Scegli la data', null, true); return; }
   const impOrig = f.importo_orig === '' ? '' : leggiImporto(f.importo_orig);
   const payload = { id: f.id, data, importo, tipo: f.tipo, categoria_id: f.categoria_id, progetto_id: f.progetto_id,
-    descrizione: f.descrizione.trim(), note: f.note, rimborsabile: f.rimborsabile,
+    descrizione: f.descrizione.trim(), note: f.note, rimborsabile: f.rimborsabile, ora: /^\d{2}:\d{2}$/.test(f.ora || '') ? f.ora : '',
     importo_orig: isFinite(impOrig) ? impOrig : '', valuta_orig: f.valuta_orig, allegato_url: f.allegato_url, fonte: f.fonte };
   // Si torna subito alla schermata precedente: il salvataggio prosegue in background.
   const nuovo = !f.id, copiaForm = Object.assign({}, f, { letti: {}, lettura: null });
@@ -664,6 +673,9 @@ function applicaLettura(r, ms) {
   if (d && d <= S.avvio.oggi && d >= unAnnoFa) {
     f.data = d; f.dataScelta = d === S.avvio.oggi ? 'oggi' : d === ieriIso() ? 'ieri' : 'altra'; letti.data = 'letto';
   } else { f.dataScelta = 'altra'; f.data = S.avvio.oggi; letti.data = 'dubbio'; }
+  const ora = /^(\d{1,2}):(\d{2})$/.exec(String(r.ora || '').trim());
+  if (ora && Number(ora[1]) < 24 && Number(ora[2]) < 60) { f.ora = `${ora[1].padStart(2, '0')}:${ora[2]}`; f.oraManuale = true; letti.ora = 'letto'; }
+  else if (!f.oraManuale) f.ora = f.dataScelta === 'oggi' ? f.ora : '';
   f.letti = letti;
   f.lettura = { stato: 'ok', ms, foto: f.lettura && f.lettura.foto, nota };
   const scroll = $('#formScroll') ? $('#formScroll').scrollTop : 0;
@@ -727,6 +739,7 @@ document.addEventListener('click', ev => {
   else if (f && a === 'data') {
     leggiCampi(); f.dataScelta = v; delete f.letti.data;
     f.data = v === 'oggi' ? S.avvio.oggi : v === 'ieri' ? ieriIso() : f.data;
+    if (!f.oraManuale) f.ora = v === 'oggi' ? oraAdesso() : '';
     renderSezione('Data'); renderSezione('Progetto');
   }
   else if (f && a === 'prog') { f.progetto_id = v; renderSezione('Progetto'); }
@@ -745,6 +758,7 @@ document.addEventListener('click', ev => {
 });
 document.addEventListener('change', ev => {
   if (ev.target.id === 'foto' && ev.target.files[0]) { const file = ev.target.files[0]; ev.target.value = ''; leggiFoto(file); }
+  if (ev.target.id === 'fOra' && S.form) { S.form.ora = ev.target.value; S.form.oraManuale = true; }
   if (ev.target.id === 'fDataAltra' && S.form) { S.form.data = ev.target.value; delete S.form.letti.data; renderSezione('Progetto'); }
   if (ev.target.id === 'fltPer' && S.mov) {
     const f = S.mov.filtri, v = ev.target.value;

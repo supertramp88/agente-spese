@@ -542,6 +542,7 @@ ${nota ? `<p class="nota">${nota}</p>` : ''}</section>`;
 <main class="scroll">
 ${blocco('Registrare', 'plus', [
   '<b>Importo + categoria</b> bastano: il resto è facoltativo.',
+  '<b>Ora</b>: proposta quella attuale per le spese di oggi (dallo scontrino, se c’è); per ieri o un’altra data inseriscila se ti serve.',
   '<b>Scontrino</b>: foto → controlla i campi segnati <i>da verificare</i> → Salva.',
   '<b>Salva</b> torna subito indietro; se qualcosa va storto compare <i>Non salvato · Riapri</i>.',
   '<b>Rimborso</b> = soldi che ti tornano (riduce la spesa). <b>Entrata</b> = non conta nella spesa.',
