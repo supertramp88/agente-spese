@@ -88,6 +88,7 @@ const ICONE = {
   camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18h.01"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   cart: '<path d="M3 4h2l2.5 11h10L20 7H6.2"/><circle cx="9" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/>',
   fork: '<path d="M7 3v8M5 3v4a2 2 0 004 0V3M7 11v10"/><path d="M17 3c-2 0-3 2-3 5s1 4 3 4v9"/>',
@@ -158,12 +159,13 @@ function vai(vista, opzioni) {
   else if (vista === 'budget') renderBudget();
   else if (vista === 'progetti') renderProgetti();
   else if (vista === 'altro') renderAltro();
+  else if (vista === 'info') renderInfo();
   renderNav();
   // cronologia del browser: il tasto "indietro" del telefono torna alla schermata precedente
   if (!history.state || history.state.vista === vista) history.replaceState({ vista }, '');
   else history.pushState({ vista }, '');
 }
-const sezioneNav = () => ['budget', 'progetti'].includes(S.vista) ? 'altro' : S.vista;
+const sezioneNav = () => ['budget', 'progetti', 'info'].includes(S.vista) ? 'altro' : S.vista;
 function renderNav() {
   const nav = $('#nav');
   nav.hidden = S.vista === 'form';
@@ -761,6 +763,6 @@ ${messaggio ? `<p class="small ko" style="margin:0;">${esc(messaggio)}</p>` : ''
 function vaiSenzaStorico(v) {
   if (v === 'home') renderHome(); else if (v === 'movimenti') apriMovimenti(); else if (v === 'form') renderForm();
   else if (v === 'analisi') renderAnalisi(); else if (v === 'budget') renderBudget();
-  else if (v === 'progetti') renderProgetti(); else renderAltro();
+  else if (v === 'progetti') renderProgetti(); else if (v === 'info') renderInfo(); else renderAltro();
   renderNav();
 }

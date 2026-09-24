@@ -61,6 +61,10 @@ a{color:var(--acc)}a:hover{color:var(--accH)}
 .anello-graf svg{display:block}
 .anello-testo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .pannello{background:var(--bg);border-radius:12px}
+.regole{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:14px;line-height:1.45}
+.regole li::marker{color:var(--acc)}
+.regole b{font-weight:600}
+.nota{margin:0;padding:10px 12px;border-radius:12px;background:var(--soft);color:var(--tx);font-size:14px;line-height:1.45}
 
 [hidden]{display:none !important}
 html,body{height:100%}

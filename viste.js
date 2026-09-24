@@ -412,6 +412,7 @@ function disegnaAltro() {
 <section class="card" style="padding:4px 16px;gap:0;">
 ${voceAltro('budget', 'chart', 'Budget', `${euroTondo(b.totale)}/mese · ${b.righe.length} categorie con budget`)}
 ${voceAltro('progetti', 'folder', 'Progetti', `${(S.avvio.progettiAttivi || []).length} attivi`)}
+${voceAltro('info', 'info', 'Guida', 'Regole e consigli in breve')}
 <a class="row" href="${esc(S.avvio.dbUrl)}" target="_blank" rel="noopener"><span class="badge">${ic('sheet', 20)}</span>
 <span class="grow"><span style="display:block;font-size:15px;font-weight:500;">Database</span><span class="small">Il foglio Google con tutti i dati</span></span>${ic('right', 18)}</a>
 <button type="button" class="row" data-azione="alt-scollega" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;text-align:left;"><span class="badge">${ic('x', 20)}</span>
@@ -473,6 +474,55 @@ ${d.automatismi ? `<span class="status ok">${ic('check', 14, 2.4)} Attivi: repor
 </section>
 </main>`;
   if ($('#altScroll')) $('#altScroll').scrollTop = scroll;
+}
+// ------------------------------------------------------------------ GUIDA
+/** Regole e consigli d'uso, in breve. */
+function renderInfo() {
+  const b = S.avvio.budget || {};
+  const totale = euroTondo((b.prossimo && b.prossimo.totale) || b.totale || 0);
+  const blocco = (titolo, icona, voci, nota) => `<section class="card" style="gap:10px;">
+<div style="display:flex;align-items:center;gap:10px;"><span class="badge" style="width:32px;height:32px;border-radius:9px;">${ic(icona, 18)}</span><h2 class="h2">${titolo}</h2></div>
+<ul class="regole">${voci.map(v => `<li>${v}</li>`).join('')}</ul>
+${nota ? `<p class="nota">${nota}</p>` : ''}</section>`;
+  $('#vista').innerHTML = `${intestazione('Guida', 'altro')}
+<main class="scroll">
+${blocco('Registrare', 'plus', [
+  '<b>Importo + categoria</b> bastano: il resto è facoltativo.',
+  '<b>Scontrino</b>: foto → controlla i campi segnati <i>da verificare</i> → Salva.',
+  '<b>Salva</b> torna subito indietro; se qualcosa va storto compare <i>Non salvato · Riapri</i>.',
+  '<b>Rimborso</b> = soldi che ti tornano (riduce la spesa). <b>Entrata</b> = non conta nella spesa.',
+  '<b>Spese condivise</b>: registra solo la tua quota.',
+  '<b>Lavoro anticipato</b>: <i>Da rimborsare</i>; quando rientra → Altro → Rimborsi attesi → Rimborsato.',
+])}
+${blocco('Progetti', 'folder', [
+  'Raccolgono le spese di un viaggio, un veicolo, un lavoro… La categoria resta quella della spesa.',
+  '<b>Viaggi: sempre in un progetto</b>, con il suo budget.',
+  'Viaggio finito → <b>Chiudi</b>. Spese arrivate dopo: nel modulo, <i>Altri progetti</i>.',
+], `<b>Nota su viaggi e progetti.</b> Di default le loro spese <b>non pesano</b> sul budget mensile (${totale}), sulla Home e sui report: le vedi solo nel progetto. Per farle contare, nel progetto disattiva <i>Escludi dai totali personali</i>.`)}
+${blocco('Budget', 'chart', [
+  `<b>Totale ${totale}/mese</b> per le spese personali (viaggi esclusi).`,
+  '<b>Mensili</b> ripartono ogni mese. <b>Annuali</b> contano da gennaio: la tacca è la quota maturata a oggi.',
+  'Ogni budget può essere <b>mensile o annuale</b>: Altro → Budget → Modifica → <i>Mensile</i> / <i>Annuale</i>. Annuale per le spese a picchi (regali, tasse, acquisti grossi).',
+  '<b>Categorie ≤ totale</b> (le annuali contano 1/12): se lo superano compare un avviso rosso.',
+  'Una modifica vale da questo mese o dal prossimo: i mesi passati restano con il budget di allora.',
+  '<span class="ok strong">Verde</span> in linea · <span style="color:var(--warn);font-weight:600;">ocra</span> vicino o sopra il ritmo · <span class="ko strong">rosso</span> oltre.',
+])}
+${blocco('In automatico', 'check', [
+  '<b>Spese ricorrenti</b> (Starlink, inReach…) create da sole il giorno dovuto.',
+  '<b>Report</b>: venerdì ~19:30 · giorno 1 alle 8 · primo lunedì di gennaio.',
+  '<b>Backup</b> del foglio ogni domenica (tiene gli ultimi 12).',
+])}
+${blocco('Buone abitudini', 'list', [
+  'Registra <b>subito</b>, o almeno fotografa lo scontrino.',
+  'Descrizioni brevi e riconoscibili: le ritrovi con la ricerca.',
+  'Una volta a settimana: leggi il report e controlla i <i>Rimborsi attesi</i>.',
+  'Il foglio Google si può correggere a mano: l’app si aggiorna da sola.',
+])}
+${blocco('Sicurezza', 'alert', [
+  'Il link di collegamento contiene la chiave: <b>non inoltrarlo</b>.',
+  'Dispositivo perso: nell’editor esegui <i>creaChiaveApi</i> e poi <i>inviaLinkCollegamento</i>.',
+])}
+</main>`;
 }
 function voceAltro(v, icona, titolo, sotto) {
   return `<a class="row" href="#" data-azione="vai" data-v="${v}"><span class="badge">${ic(icona, 20)}</span>
