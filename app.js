@@ -226,66 +226,50 @@ function anelloHtml(pct, quota, sopra) {
 <circle cx="70" cy="70" r="${ri}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${giorni.toFixed(1)} ${ci.toFixed(1)}" transform="rotate(-90 70 70)" style="stroke:var(--tx2);opacity:.45"></circle></svg>
 <div class="anello-testo"><span class="h2 num" style="font-size:28px;font-weight:700;">${pct}%</span><span class="small">del budget</span></div></div>`;
 }
-/** Home del mese in corso oppure, con le frecce, di un mese passato (S.homeMese). */
-function renderHome() {
-  const cur = S.avvio.mese, hm = S.homeMese;
-  if (!hm || (hm.anno === cur.anno && hm.mese === cur.mese)) { S.homeMese = null; disegnaHome(cur, S.avvio.budget, S.avvio.ultimi, true); return; }
-  const k = `home:${hm.anno}-${hm.mese}`, km = chiaveMov({ anno: hm.anno, mese: hm.mese, testo: '', filtri: {} });
-  const dati = memoDati(k), movs = memoDati(km);
-  if (dati) disegnaHome(dati.mese, dati.budget, movs ? movs.righe.slice(0, 8) : null, false);
-  else $('#vista').innerHTML = `${testataHome(hm.anno, hm.mese, false)}${caricamento()}`;
-  if (memoFresco(k) && memoFresco(km)) return;
-  // si chiede al server solo quando si smette di sfogliare i mesi (niente coda di richieste inutili)
-  clearTimeout(S.homeTimer);
-  S.homeTimer = setTimeout(() => {
-    if (S.vista !== 'home' || S.homeMese !== hm) return;
-    Promise.all([recupera(k, 'getMese', hm.anno, hm.mese), recupera(km, 'getMovimenti', hm.anno, hm.mese, '', {})])
-      .then(([d, mv]) => { if (S.vista === 'home' && S.homeMese === hm) disegnaHome(d.mese, d.budget, mv.righe.slice(0, 8), false); })
-      .catch(e => {
-        if (S.vista !== 'home' || S.homeMese !== hm) return;
-        if (memoDati(k)) { errore(e); return; }   // restano a schermo i dati già visti
-        $('#vista').innerHTML = `${testataHome(hm.anno, hm.mese, false)}<div class="vuoto"><p class="ko strong">Dati non caricati</p>
-<p class="small">${esc(e.message)}</p><button type="button" class="btn" style="max-width:200px;margin:0 auto;" data-azione="home-riprova">Riprova</button></div>`;
-      });
-  }, 350);
-}
-function testataHome(anno, mese, corrente) {
-  const annoDiverso = anno !== S.avvio.mese.anno;
-  return `<header class="top"><div style="display:flex;align-items:center;gap:0;min-width:0;">
-<button type="button" class="iconbtn" data-azione="home-mese" data-d="-1" aria-label="Mese precedente" style="margin-left:-12px;">${ic('left')}</button>
-<h1 class="h1" style="white-space:nowrap;">${esc(maiusc(MESI[mese - 1]))}${annoDiverso ? `<span class="label" style="margin-left:6px;font-family:inherit;">${anno}</span>` : ''}</h1>
-<button type="button" class="iconbtn" data-azione="home-mese" data-d="1" aria-label="Mese successivo"${corrente ? ' disabled style="opacity:.25;"' : ''}>${ic('right')}</button></div>
-${S.avvio.geminiConfigurato ? `<button type="button" class="chip" data-azione="scontrino" style="min-height:44px;flex-shrink:0;">${ic('camera', 18)} Scontrino</button>` : ''}</header>`;
-}
-function disegnaHome(m, budget, ultimi, corrente) {
+/** Riquadro del mese (anello, speso su budget, ritmo, proiezione): in Analisi → Mese. */
+function riepilogoMeseHtml(m, corrente, extra) {
   const pct = m.budget ? Math.round(m.speso / m.budget * 100) : 0;
   const quota = Math.round(m.giorniTrascorsi / m.giorniMese * 100);
   const sopra = m.budget && (corrente ? pct > quota + 5 : m.speso > m.budget);
   const proiezione = m.giorniTrascorsi ? m.speso / m.giorniTrascorsi * m.giorniMese : 0;
-  const nomeMese = MESI[m.mese - 1], oggi = S.avvio.mese;
-  $('#vista').innerHTML = `${testataHome(m.anno, m.mese, corrente)}
-<main class="scroll">
-${corrente ? '' : `<button type="button" class="link" data-azione="home-mese" data-d="0" style="border:0;background:transparent;padding:0;min-height:36px;cursor:pointer;text-align:left;align-self:flex-start;">${ic('left', 14, 2.4)} Torna a ${esc(MESI[oggi.mese - 1])}</button>`}
-<section class="card" aria-label="Riepilogo del mese">
+  const nomeMese = MESI[m.mese - 1];
+  return `<section class="card" aria-label="Riepilogo del mese">
 ${m.budget ? `<div class="anello">${anelloHtml(pct, quota, m.speso > m.budget)}
 <div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">${esc(nomeMese)}</span>
 <span class="hero num${!corrente && m.speso > m.budget ? ' ko' : ''}">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span>
 <span class="small strong ${sopra ? 'ko' : 'ok'}">${corrente ? `Giorno ${m.giorniTrascorsi} di ${m.giorniMese}: ${sopra ? 'sopra il ritmo' : 'in linea'}` : `Mese chiuso: ${sopra ? 'oltre il budget' : 'nel budget'}`}</span></div></div>`
   : `<span class="cap">Speso a ${esc(m.nome)}</span><span class="hero num">${euroTondo(m.speso)}</span>`}
 ${rigaEsclusiHtml(m.speso, m.esclusi)}
+${extra || ''}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
 <div><span class="label" style="display:block;">${corrente ? 'Proiezione fine mese' : 'Media al giorno'}</span><span class="h2 num">${euroTondo(corrente ? proiezione : m.speso / m.giorniMese)}</span></div>
 <div><span class="label" style="display:block;">${m.budget && m.speso > m.budget ? 'Oltre il budget' : corrente ? 'Restano da spendere' : 'Avanzati'}</span><span class="h2 num${m.budget && m.speso > m.budget ? ' ko' : ''}">${m.budget ? euroTondo(Math.abs(m.budget - m.speso)) : '—'}</span></div>
 </div>
-</section>
-${homeBudgetHtml(budget)}
-${corrente ? homeProgettiHtml() : ''}
-<section class="card" aria-label="${corrente ? 'Ultimi movimenti' : 'Movimenti del mese'}" style="gap:4px;">
-<div class="sechead"><h2 class="h2">${corrente ? 'Ultimi movimenti' : `Movimenti di ${esc(nomeMese)}`}</h2>
-<a class="link" href="#" data-azione="home-movimenti" data-a="${m.anno}" data-m="${m.mese}">Tutti</a></div>
-<div>${!ultimi ? caricamento() : ultimi.length ? ultimi.map(x => rigaMovimento(x, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div>
-</section>
+</section>`;
+}
+/** Home "neutra": la prima schermata all'avvio, senza importi (privacy). Solo scorciatoie. */
+function renderHome() {
+  const d = new Date(), h = d.getHours();
+  const saluto = h < 5 ? 'Buonanotte' : h < 13 ? 'Buongiorno' : h < 18 ? 'Buon pomeriggio' : 'Buonasera';
+  const tile = (azione, v, icona, titolo, sotto) => `<button type="button" class="tile" data-azione="${azione}"${v ? ` data-v="${v}"` : ''}>
+<span class="badge">${ic(icona, 22)}</span><span class="tile-t">${titolo}</span><span class="small">${sotto}</span></button>`;
+  const veloci = (S.avvio.frequenti || []).filter(id => CAT[id] && CAT[id].attiva !== false).slice(0, 4);
+  $('#vista').innerHTML = `<header class="top"><div><h1 class="h1">${saluto}</h1>
+<span class="label">${maiusc(GIORNI[d.getDay()])} ${d.getDate()} ${MESI[d.getMonth()]}</span></div></header>
+<main class="scroll">
+<div class="tiles">
+${S.avvio.geminiConfigurato ? tile('scontrino', '', 'camera', 'Scontrino', 'Foto e registra') : ''}
+${tile('nuovo', '', 'plus', 'Nuova spesa', 'Inserisci a mano')}
+${tile('vai', 'analisi', 'chart', 'Analisi', 'Il mese e i budget')}
+${tile('vai', 'progetti', 'folder', 'Progetti', 'Viaggi e altri progetti')}
+</div>
+${veloci.length ? `<section class="card" style="gap:10px;"><span class="cap">Spesa veloce</span>
+<div class="chips">${veloci.map(id => `<button type="button" class="chip" data-azione="nuovo-cat" data-v="${id}">${ic(ICONA_SUB[id] || iconaCat(id), 16)} ${esc(CAT[id].nome)}</button>`).join('')}</div></section>` : ''}
+<div style="display:flex;gap:18px;flex-wrap:wrap;padding:0 4px;">
+<a class="link" href="#" data-azione="vai" data-v="movimenti">Movimenti</a>
+<a class="link" href="#" data-azione="vai" data-v="budget">Budget</a>
+<a class="link" href="#" data-azione="vai" data-v="info">Guida</a></div>
 </main>`;
 }
 
@@ -710,27 +694,8 @@ document.addEventListener('click', ev => {
     if (nuovo > S.avvio.mese.anno) return;
     S.mov.filtri.anno = nuovo; renderMovimenti(); caricaMovimenti();   // tornando a "Mese" si riparte dal mese di prima
   }
-  else if (a === 'home-mese') {
-    const d = Number(el.dataset.d), cur = S.avvio.mese, base = S.homeMese || cur;
-    const x = new Date(base.anno, base.mese - 1 + d, 1);
-    const futuro = x.getFullYear() * 12 + x.getMonth() >= cur.anno * 12 + cur.mese - 1;
-    S.homeMese = d === 0 || futuro ? null : { anno: x.getFullYear(), mese: x.getMonth() + 1 };
-    renderHome(); if ($('.scroll')) $('.scroll').scrollTop = 0;
-  }
-  else if (a === 'home-bud-apri') {
-    // apre/chiude il dettaglio senza ridisegnare la pagina (la posizione di scorrimento resta)
-    S.homeAperte = S.homeAperte || new Set();
-    const box = document.getElementById('sub-' + v), aperta = !S.homeAperte.has(v);
-    if (aperta) S.homeAperte.add(v); else S.homeAperte.delete(v);
-    if (box) box.hidden = !aperta;
-    el.setAttribute('aria-expanded', aperta);
-  }
-  else if (a === 'home-riprova') renderHome();
+  else if (a === 'nuovo-cat') { S.tornaA = S.vista; apriNuovo({ categoria_id: v, catManuale: true }); }
   else if (a === 'riprova-vista') { if (S.vista === 'movimenti') caricaMovimenti(); else if (S.vista === 'analisi') caricaAnalisi(); else vaiSenzaStorico(S.vista); }
-  else if (a === 'home-movimenti') {
-    S.mov = { anno: Number(el.dataset.a), mese: Number(el.dataset.m), testo: '', dati: null, filtri: {} };
-    S.tornaA = 'movimenti'; vai('movimenti');
-  }
   else if (a === 'chiudiForm') vai(S.tornaA || 'home');
   else if (a === 'salva') salva(el.dataset.poi);
   else if (a === 'elimina') elimina();
