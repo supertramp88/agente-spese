@@ -48,6 +48,19 @@ const confrontoHtml = (att, prec, nome) => {
 };
 
 // ------------------------------------------------------------------ HOME: sezioni aggiuntive
+/** Riga di budget in Home, come nel bozzetto: nome, speso / budget, barra, periodicità e percentuale. */
+function rigaBudgetHome(r) {
+  const annuale = r.periodicita === 'ANNUALE';
+  const pct = r.importo ? Math.round(r.speso / r.importo * 100) : 0;
+  const classe = pct > 100 ? ' over' : (r.sopra || pct >= 90) ? ' warn' : '';
+  const tick = annuale && r.importo ? Math.round(r.maturato / r.importo * 100) : null;
+  const sotto = annuale ? (r.sopra ? 'annuale · sopra il ritmo' : `annuale · quota a oggi ${euroTondo(r.maturato)}`) : 'mensile';
+  return `<div style="display:flex;flex-direction:column;gap:6px;padding:8px 0;">
+<div style="display:flex;justify-content:space-between;gap:8px;font-size:14px;"><span class="strong" style="font-weight:500;">${esc(r.nome)}</span>
+<span class="num" style="white-space:nowrap;">${euroTondo(r.speso)} <span style="color:var(--tx2);">/ ${euroTondo(r.importo)}</span></span></div>
+<div class="meter" role="img" aria-label="${esc(r.nome)}: speso ${pct}% del budget ${annuale ? 'annuale' : 'mensile'}"><div class="fill${classe}" style="width:${Math.max(0, Math.min(100, pct))}%;"></div>${tick == null ? '' : `<div class="tick" style="left:${Math.max(0, Math.min(100, tick))}%;"></div>`}</div>
+<div style="display:flex;justify-content:space-between;gap:8px;" class="small"><span>${sotto}</span><span class="num${pct > 100 ? ' ko strong' : ''}">${pct}%</span></div></div>`;
+}
 function homeBudgetHtml() {
   const b = S.avvio.budget;
   if (!b || !b.righe.length) return '';
@@ -55,10 +68,11 @@ function homeBudgetHtml() {
   const annuali = b.righe.filter(r => r.periodicita === 'ANNUALE').sort((x, y) => y.pressione - x.pressione);
   return `${mensili.length ? `<section class="card" aria-label="Budget mensili" style="gap:4px;">
 <div class="sechead"><h2 class="h2">Budget del mese</h2><a class="link" href="#" data-azione="vai" data-v="budget">Tutti</a></div>
-<div>${mensili.map(r => rigaBudget(r)).join('')}</div></section>` : ''}
+<div>${mensili.map(rigaBudgetHome).join('')}</div></section>` : ''}
 ${annuali.length ? `<section class="card" aria-label="Budget annuali" style="gap:4px;">
-<div class="sechead"><h2 class="h2">Budget annuali</h2><span class="small">da gennaio · tacca = quota a oggi</span></div>
-<div>${annuali.slice(0, 3).map(r => rigaBudget(r)).join('')}</div>
+<div class="sechead"><h2 class="h2">Budget annuali da tenere d’occhio</h2></div>
+<div>${annuali.slice(0, 3).map(rigaBudgetHome).join('')}</div>
+<span class="small">La tacca indica la quota maturata a oggi.</span>
 ${annuali.length > 3 ? `<a class="link" href="#" data-azione="vai" data-v="budget" style="padding-top:8px;">Altri ${annuali.length - 3} budget annuali</a>` : ''}</section>` : ''}`;
 }
 function homeProgettiHtml() {
@@ -66,7 +80,9 @@ function homeProgettiHtml() {
   if (!p.length) return '';
   return `<section class="card" aria-label="Progetti attivi">
 <div class="sechead"><h2 class="h2">Progetti attivi</h2><a class="link" href="#" data-azione="vai" data-v="progetti">Tutti</a></div>
-<div class="chips">${p.slice(0, 6).map(x => `<button type="button" class="chip" data-azione="prog-movimenti" data-v="${x.id}">${esc(x.nome)} · ${x.budget ? `${euroTondo(x.totale)}/${euroTondo(x.budget)}` : euroTondo(x.anno)}</button>`).join('')}</div>
+<div>${p.slice(0, 6).map(x => `<button type="button" class="row" data-azione="prog-movimenti" data-v="${x.id}" style="width:100%;border-left:0;border-right:0;border-top:0;background:transparent;font:inherit;cursor:pointer;text-align:left;min-height:44px;">
+<span class="grow" style="font-size:15px;">${esc(x.nome)}</span><span class="num strong" style="font-size:15px;">${x.budget ? `${euroTondo(x.totale)} <span class="small">/ ${euroTondo(x.budget)}</span>` : euroTondo(x.anno)}</span></button>`).join('')}</div>
+<span class="small">Speso nel ${S.avvio.mese.anno}${p.some(x => x.budget) ? '; con budget: totale / budget' : ''}</span>
 </section>`;
 }
 

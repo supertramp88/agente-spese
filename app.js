@@ -205,13 +205,13 @@ function rigaMovimento(m, conGiorno) {
 // ------------------------------------------------------------------ HOME
 /** Anello dello stile 3: esterno = budget speso, interno sottile = parte del mese trascorsa. */
 function anelloHtml(pct, quota, sopra) {
-  const r = 56, c = 2 * Math.PI * r, ri = 42, ci = 2 * Math.PI * ri;
+  const r = 60, c = 2 * Math.PI * r, ri = 45, ci = 2 * Math.PI * ri;
   const pieno = c * Math.min(pct, 100) / 100, giorni = ci * Math.min(quota, 100) / 100;
   return `<div class="anello-graf" role="img" aria-label="Speso ${pct}% del budget; trascorso ${quota}% del mese">
-<svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true"><circle cx="66" cy="66" r="${r}" fill="none" stroke-width="11" style="stroke:var(--track)"></circle>
-<circle cx="66" cy="66" r="${r}" fill="none" stroke-width="11" stroke-linecap="round" stroke-dasharray="${pieno.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 66 66)" style="stroke:var(${sopra ? '--ko' : '--acc'})"></circle>
-<circle cx="66" cy="66" r="${ri}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${giorni.toFixed(1)} ${ci.toFixed(1)}" transform="rotate(-90 66 66)" style="stroke:var(--tx2);opacity:.45"></circle></svg>
-<div class="anello-testo"><span class="h2 num" style="font-size:26px;">${pct}%</span><span class="small">del budget</span></div></div>`;
+<svg width="140" height="140" viewBox="0 0 140 140" aria-hidden="true"><circle cx="70" cy="70" r="${r}" fill="none" stroke-width="12" style="stroke:var(--track)"></circle>
+<circle cx="70" cy="70" r="${r}" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="${pieno.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 70 70)" style="stroke:var(${sopra ? '--ko' : '--acc'})"></circle>
+<circle cx="70" cy="70" r="${ri}" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="${giorni.toFixed(1)} ${ci.toFixed(1)}" transform="rotate(-90 70 70)" style="stroke:var(--tx2);opacity:.45"></circle></svg>
+<div class="anello-testo"><span class="h2 num" style="font-size:28px;font-weight:700;">${pct}%</span><span class="small">del budget</span></div></div>`;
 }
 function renderHome() {
   const a = S.avvio, m = a.mese;
@@ -219,17 +219,15 @@ function renderHome() {
   const quota = Math.round(m.giorniTrascorsi / m.giorniMese * 100);
   const sopra = m.budget && pct > quota + 5;
   const proiezione = m.giorniTrascorsi ? m.speso / m.giorniTrascorsi * m.giorniMese : 0;
-  const stato = !m.budget ? '' : sopra
-    ? `<span class="status ko">${ic('alert', 14, 2)} Sopra il ritmo: ${pct}% speso, ${quota}% del mese passato</span>`
-    : `<span class="status ok">${ic('check', 14, 2.4)} In linea: ${pct}% speso, ${quota}% del mese passato</span>`;
   $('#vista').innerHTML = `
 <header class="top"><h1 class="h1">${esc(maiusc(m.nome.split(' ')[0]))}</h1>
-${a.geminiConfigurato ? `<button class="iconbtn bordo" data-azione="scontrino" aria-label="Scansiona scontrino">${ic('camera')}</button>` : ''}</header>
+${a.geminiConfigurato ? `<button type="button" class="chip" data-azione="scontrino" style="min-height:44px;">${ic('camera', 18)} Scontrino</button>` : ''}</header>
 <main class="scroll">
 <section class="card" aria-label="Riepilogo del mese">
 ${m.budget ? `<div class="anello">${anelloHtml(pct, quota, m.speso > m.budget)}
-<div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">Speso a ${esc(m.nome.split(' ')[0])}</span>
-<span class="hero num">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span></div></div>${stato}`
+<div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><span class="cap">${esc(m.nome.split(' ')[0])}</span>
+<span class="hero num">${euroTondo(m.speso)}</span><span class="label num">su ${euroTondo(m.budget)}</span>
+<span class="small strong ${sopra ? 'ko' : 'ok'}">Giorno ${m.giorniTrascorsi} di ${m.giorniMese}: ${sopra ? 'sopra il ritmo' : 'in linea'}</span></div></div>`
   : `<span class="cap">Speso a ${esc(m.nome)}</span><span class="hero num">${euroTondo(m.speso)}</span>`}
 <div class="divider"></div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
@@ -237,12 +235,12 @@ ${m.budget ? `<div class="anello">${anelloHtml(pct, quota, m.speso > m.budget)}
 <div><span class="label" style="display:block;">${m.budget && m.speso > m.budget ? 'Oltre il budget' : 'Restano da spendere'}</span><span class="h2 num${m.budget && m.speso > m.budget ? ' ko' : ''}">${m.budget ? euroTondo(Math.abs(m.budget - m.speso)) : '—'}</span></div>
 </div>
 </section>
-<section class="card" aria-label="Ultimi movimenti" style="gap:4px;">
-<div class="sechead"><h2 class="h2">Ultimi movimenti</h2><a class="link" href="#" data-azione="vai" data-v="movimenti">Vedi tutti</a></div>
-<div>${a.ultimi.length ? a.ultimi.map(x => rigaMovimento(x, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div>
-</section>
 ${homeBudgetHtml()}
 ${homeProgettiHtml()}
+<section class="card" aria-label="Ultimi movimenti" style="gap:4px;">
+<div class="sechead"><h2 class="h2">Ultimi movimenti</h2><a class="link" href="#" data-azione="vai" data-v="movimenti">Tutti</a></div>
+<div>${a.ultimi.length ? a.ultimi.map(x => rigaMovimento(x, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div>
+</section>
 </main>`;
 }
 

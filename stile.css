@@ -19,6 +19,7 @@ a{color:var(--acc)}a:hover{color:var(--accH)}
 .meter{height:8px;border-radius:4px;background:var(--track);position:relative}
 .fill{height:8px;border-radius:4px;background:var(--acc)}
 .fill.over{background:var(--ko)}
+.fill.warn{background:var(--warn)}
 .tick{position:absolute;top:-4px;width:2px;height:16px;background:var(--tx);border-radius:1px}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chip{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;box-sizing:border-box;border-radius:12px;border:1px solid var(--bordo);background:var(--card);font:inherit;font-size:14px;color:var(--tx);cursor:pointer;text-decoration:none}
@@ -56,7 +57,7 @@ a{color:var(--acc)}a:hover{color:var(--accH)}
 .switch span{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;background:var(--knob)}
 .switch.on span{left:21px;background:var(--accTx)}
 .anello{display:flex;align-items:center;gap:18px}
-.anello-graf{position:relative;width:132px;height:132px;flex-shrink:0}
+.anello-graf{position:relative;width:140px;height:140px;flex-shrink:0}
 .anello-graf svg{display:block}
 .anello-testo{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .pannello{background:var(--bg);border-radius:12px}
