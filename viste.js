@@ -217,10 +217,10 @@ function renderAnalisiCorpo() {
 ${riepilogoMeseHtml({ anno: d.anno, mese: d.mese, nome: nomeMese, speso: m.totale, budget: m.budget, esclusi: m.esclusi,
   giorniMese: new Date(d.anno, d.mese, 0).getDate(), giorniTrascorsi: d.corrente ? d.giornoLimite : new Date(d.anno, d.mese, 0).getDate() },
   d.corrente, d.budget ? avvisoSommaHome(d.budget) : '')}
-<section class="card"><h2 class="h2">Ultimi 12 mesi</h2>${graficoMesi(d.mesi12, m.budget, d.corrente)}
-<span class="small">Tratteggio = budget mensile${m.budget ? ` (${euroTondo(m.budget)}); in rosso la parte oltre` : ''} · media ${euroTondo(d.mesi12.reduce((s, x) => s + x.valore, 0) / 12)} al mese · tocca una barra per aprire quel mese</span></section>
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Dove vanno i soldi</h2><span class="small">tocca per il dettaglio</span></div>
 ${categorieHtml(m.perMacro, m.totale, 'mese', budgetCiambelle(d, 'mese'))}</section>
+<section class="card"><h2 class="h2">Ultimi 12 mesi</h2>${graficoMesi(d.mesi12, m.budget, d.corrente)}
+<span class="small">Tratteggio = budget mensile${m.budget ? ` (${euroTondo(m.budget)}); in rosso la parte oltre` : ''} · media ${euroTondo(d.mesi12.reduce((s, x) => s + x.valore, 0) / 12)} al mese · tocca una barra per aprire quel mese</span></section>
 ${m.perProgetto.length ? `<section class="card" style="gap:4px;"><h2 class="h2">Progetti nel mese</h2>${progettiAnalisiHtml(m.perProgetto, 'nel mese')}</section>` : ''}
 </div>`;
   } else {
