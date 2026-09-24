@@ -170,9 +170,10 @@ const sezioneNav = () => ['budget', 'progetti', 'info'].includes(S.vista) ? 'alt
 function renderNav() {
   const nav = $('#nav');
   nav.hidden = S.vista === 'form';
+  $('#vista').dataset.vista = S.vista;   // su schermo largo il layout cambia per schermata (stile.css)
   const voci = [['home', 'home', 'Home'], ['movimenti', 'list', 'Movimenti'], null, ['analisi', 'chart', 'Analisi'], ['altro', 'more', 'Altro']];
   nav.innerHTML = voci.map(v => v === null
-    ? `<a href="#" data-azione="nuovo" aria-label="Nuovo movimento"><span class="fab">${ic('plus', 26, 2.2)}</span></a>`
+    ? `<a href="#" data-azione="nuovo" aria-label="Nuovo movimento"><span class="fab">${ic('plus', 26, 2.2)}</span><span class="fab-testo">Nuovo movimento</span></a>`
     : `<a href="#" data-azione="vai" data-v="${v[0]}"${sezioneNav() === v[0] ? ' class="on" aria-current="page"' : ''}>${ic(v[1])}<span>${v[2]}</span></a>`).join('');
 }
 
@@ -811,6 +812,7 @@ async function precarica() {
 function renderCollega(messaggio) {
   const c = Config.leggi();
   $('#nav').hidden = true;
+  $('#vista').dataset.vista = 'collega';
   $('#vista').innerHTML = `<header class="top"><h1 class="h1">Agente $$</h1></header>
 <main class="scroll">
 <section class="card"><h2 class="h2">Collega questo dispositivo</h2>

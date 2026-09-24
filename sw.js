@@ -1,7 +1,7 @@
 /* Agente - $$ — service worker: tiene sul dispositivo il "guscio" dell'app (HTML, CSS, JS, icone)
  * così si apre subito anche con rete lenta. I dati NON passano da qui: le chiamate al server
  * (script.google.com) vanno sempre in rete. Per pubblicare una nuova versione basta cambiare VERSIONE. */
-const VERSIONE = 'agente-f3a1562147';
+const VERSIONE = 'agente-879c40a151';
 const GUSCIO = ['./', 'index.html', 'stile.css', 'api.js', 'app.js', 'viste.js', 'manifest.webmanifest',
   'icone/icona-192.png', 'icone/icona-512.png', 'icone/apple-touch-icon.png'];
 

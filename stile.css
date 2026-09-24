@@ -97,3 +97,42 @@ select.chip.sel.on{background-image:var(--frecciaOn)}
 select.input{appearance:auto}
 .occupato button,.occupato .btn,.occupato .chip{pointer-events:none}
 .occupato .btn{opacity:.55}
+
+/* ---------------------------------------------------------------- schermo largo (PC, tablet orizzontale)
+   Navigazione a sinistra; due colonne dove ci sono tante card; colonna larga e centrata per elenchi e modulo. */
+.fab-testo{display:none}
+@media (min-width: 960px){
+  .app{max-width:1320px;display:grid;grid-template-columns:236px minmax(0,1fr);grid-template-rows:minmax(0,1fr);border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .app:has(#nav[hidden]){grid-template-columns:minmax(0,1fr)}
+  .vista{grid-column:2;grid-row:1;min-width:0}
+  .app:has(#nav[hidden]) .vista{grid-column:1}
+  .nav{grid-column:1;grid-row:1;display:flex;flex-direction:column;align-items:stretch;gap:4px;border-top:0;border-right:1px solid var(--line);padding:26px 14px}
+  .nav::before{order:-2;content:"Agente $$";font-family:'Space Grotesk',system-ui,sans-serif;font-size:22px;font-weight:700;letter-spacing:-0.02em;padding:0 12px 20px;color:var(--tx)}
+  .nav a{flex-direction:row;justify-content:flex-start;gap:12px;min-height:46px;padding:0 12px;border-radius:12px;font-size:15px}
+  .nav a.on{background:var(--soft);color:var(--softTx)}
+  .nav a[data-azione="nuovo"]{order:-1;margin-bottom:16px;background:var(--acc);color:var(--accTx);justify-content:center;gap:8px;font-weight:600;box-shadow:0 4px 12px var(--fabOmbra)}
+  .nav .fab{width:auto;height:auto;margin:0;background:transparent;box-shadow:none;color:inherit}
+  .nav .fab svg{width:20px;height:20px}
+  .fab-testo{display:inline}
+  .top{padding:26px 32px 10px}
+  .scroll{padding:8px 32px 40px}
+  .azioni{padding:14px 32px 18px}
+  /* due colonne */
+  [data-vista="home"] .scroll,[data-vista="altro"] .scroll,[data-vista="info"] .scroll,[data-vista="budget"] .scroll{display:block;columns:2 400px;column-gap:20px}
+  [data-vista="home"] .scroll>*,[data-vista="altro"] .scroll>*,[data-vista="info"] .scroll>*,[data-vista="budget"] .scroll>*{break-inside:avoid;margin:0 0 20px;width:100%;box-sizing:border-box}
+  [data-vista="home"] .scroll>button.link{column-span:all;display:inline-flex;width:auto}
+  [data-vista="analisi"] #anCorpo>div{display:block !important;columns:2 400px;column-gap:20px}
+  [data-vista="analisi"] #anCorpo>div>*{break-inside:avoid;margin:0 0 20px;box-sizing:border-box}
+  [data-vista="analisi"] .scroll>.seg,[data-vista="analisi"] .scroll>.mesenav{width:100%;max-width:460px;margin-left:auto;margin-right:auto}
+  /* colonna unica, larga e centrata */
+  [data-vista="movimenti"]>*,[data-vista="progetti"]>*,[data-vista="collega"]>*{width:100%;max-width:900px;margin-left:auto;margin-right:auto;box-sizing:border-box}
+  [data-vista="form"]>*{width:100%;max-width:720px;margin-left:auto;margin-right:auto;box-sizing:border-box}
+  [data-vista="form"]>.azioni{border-top:0}
+  .toast{left:auto;right:28px;bottom:28px;max-width:440px}
+}
+@media (hover:hover){
+  .chip:hover{border-color:var(--acc)}
+  .nav a:not(.on):not([data-azione="nuovo"]):hover{background:var(--line2);color:var(--tx)}
+  .btn:hover{filter:brightness(1.06)}
+  a.row:hover,button.row:hover{background:var(--line2)}
+}
