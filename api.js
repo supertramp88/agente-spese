@@ -79,6 +79,7 @@ async function chiamaUnaVolta(fn, args) {
     const err = new Error(r.errore); err.daServer = true;   // errore vero del server: ritentare non serve
     throw err;
   }
+  if (r.specchio && r.specchio !== 'ok') Locale.forzaApps = true;   // copia su Firestore non riuscita: dati dal server
   return r.dati;
 }
 
@@ -90,13 +91,14 @@ async function chiamaUnaVolta(fn, args) {
 const SOLO_LETTURA = /^get|^statoScontrino$|^leggiScontrino$|^salvaScontrino$|^inviaReportProva$/;
 const DATI_CHIAVE = 'agente_dati';
 const Locale = {
-  ver: '', affidabile: false, attesa: null, inCorso: null, ancora: false,
+  ver: '', st: null, affidabile: false, attesa: null, inCorso: null, ancora: false, forzaApps: false,
   alCambio: null,   // impostata da app.js: ridisegna con i dati nuovi
   avvia() {
     if (typeof Motore === 'undefined') return;
     try {
       const d = JSON.parse(localStorage.getItem(DATI_CHIAVE));
-      if (d && d.ver) { Motore.carica(d); this.ver = d.ver; this.affidabile = true; }
+      if (d && d.modo === 'fb') { Motore.carica(perMotore(d)); this.st = d; this.affidabile = true; }
+      else if (d && d.ver) { Motore.carica(d); this.ver = d.ver; this.affidabile = true; }
     } catch (e) { /* si riscaricano */ }
   },
   serve(fn) { return this.affidabile && Motore.funzioni.includes(fn); },
@@ -105,7 +107,8 @@ const Locale = {
     return this.affidabile ? Motore.esegui(fn, args) : chiamaRete(fn, ...args);
   },
   /** Scarica i dati se sono cambiati; true se sono cambiati. Richieste sovrapposte: una sola alla volta,
-   *  più un giro in più se nel frattempo ne è arrivata un'altra (per esempio dopo una modifica). */
+   *  più un giro in più se nel frattempo ne è arrivata un'altra (per esempio dopo una modifica).
+   *  Prima Firestore (solo le novità); se non è collegato o non risponde, il server (getDati). */
   sincronizza() {
     if (typeof Motore === 'undefined') return Promise.resolve(false);
     if (this.inCorso) { this.ancora = true; return this.inCorso; }
@@ -113,17 +116,67 @@ const Locale = {
       let cambiato = false;
       do {
         this.ancora = false;
-        const d = await chiamaRete('getDati', this.ver);
-        if (!d.invariato) {
-          Motore.carica(d); this.ver = d.ver; cambiato = true;
-          try { localStorage.setItem(DATI_CHIAVE, JSON.stringify(d)); }
-          catch (e) { try { localStorage.removeItem(DATI_CHIAVE); } catch (e2) { /* niente */ } }
+        let fb = null;
+        if (!this.forzaApps && !Fb.assente) {
+          try { fb = await this.daFirestore(); } catch (e) { if (e instanceof ErroreCollegamento) throw e; fb = null; }
         }
-        this.affidabile = true;
+        this.forzaApps = false;
+        cambiato = (fb !== null ? fb : await this.daApps()) || cambiato;
+        this.affidabile = true; this.ultimo = Date.now();
       } while (this.ancora);
       return cambiato;
     })().finally(() => { this.inCorso = null; });
     return this.inCorso;
+  },
+  async daApps() {
+    const d = await chiamaRete('getDati', this.st ? '' : this.ver);
+    if (d.invariato) return false;
+    Motore.carica(d); this.ver = d.ver; this.st = null;
+    this.conserva(d);
+    return true;
+  },
+  /** Novità da Firestore (la prima volta tutto). null se Firebase non è collegato. */
+  async daFirestore() {
+    if (!Fb.cfg) Fb.leggi();
+    if (!Fb.cfg && !(await Fb.accedi())) return null;
+    const cfg = Fb.cfg;
+    const nuovo = !(this.st && this.st.progetto === cfg.progetto);
+    const st = nuovo ? { modo: 'fb', progetto: cfg.progetto, tabelle: {}, agg: {}, meta: cfg.meta } : this.st;
+    let cambiato = nuovo;
+    const nomi = Object.keys(cfg.collezioni);
+    if (!(await Fb.token())) return null;
+    // le raccolte insieme; un minuto di margine: una scrittura con orario di poco precedente non va persa
+    const risposte = await Promise.all(nomi.map(nome =>
+      Fb.novita(cfg.collezioni[nome], st.agg[nome] ? new Date(st.agg[nome] - 60000).toISOString() : '')));
+    if (risposte.includes(null)) return null;
+    for (const [i, nome] of nomi.entries()) {
+      const righe = st.tabelle[nome] || (st.tabelle[nome] = {});
+      for (const x of risposte[i]) {
+        if (!x.document) continue;
+        const f = x.document.fields || {}, id = x.document.name.split('/').pop();
+        const agg = f._agg ? Date.parse(f._agg.timestampValue) : 0;
+        if (agg > (st.agg[nome] || 0)) st.agg[nome] = agg;
+        if (f._eliminato) { if (righe[id]) { delete righe[id]; cambiato = true; } continue; }
+        const h = f._h ? f._h.stringValue : '';
+        if (righe[id] && righe[id]._h === h) continue;
+        righe[id] = Object.assign(daFirestore(f, cfg.colonneData[nome] || []), { _h: h });
+        cambiato = true;
+      }
+    }
+    if (cfg.meta) st.meta = cfg.meta;
+    if (cambiato) { Motore.carica(perMotore(st)); this.st = st; this.ver = ''; this.conserva(st); }
+    return cambiato;
+  },
+  /** Per Gestione: da dove arrivano i dati e quando sono stati controllati l'ultima volta. */
+  descrizione() {
+    if (!this.affidabile) return 'Dati: chiesti ogni volta al server.';
+    const da = this.st ? 'Firestore' : 'server';
+    const quando = this.ultimo ? new Date(this.ultimo).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+    return `Dati sul dispositivo, aggiornati da ${da}${quando ? ' · controllati alle ' + quando : ''}.`;
+  },
+  conserva(d) {
+    try { localStorage.setItem(DATI_CHIAVE, JSON.stringify(d)); }
+    catch (e) { try { localStorage.removeItem(DATI_CHIAVE); } catch (e2) { /* niente */ } }
   },
   dopoScrittura() {
     const attesa = this.sincronizza().then(() => { }, () => { this.affidabile = false; })
@@ -138,8 +191,101 @@ const Locale = {
   alScollegato: null,   // impostata da app.js: schermata di collegamento
   /** Chiave non più valida (per esempio dispositivo perso e chiave rigenerata): via i dati dal dispositivo. */
   dimentica() {
-    this.affidabile = false; this.ver = '';
+    this.affidabile = false; this.ver = ''; this.st = null; Fb.dimentica();
     ['agente_dati', 'agente_memo', 'agente_avvio'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* niente */ } });
+  },
+};
+
+// Firestore → valori come nel Foglio (date di calendario {g}, istanti {t}: come getDati)
+function daFirestore(campi, colonneData) {
+  const o = {};
+  for (const k in campi) {
+    if (k.startsWith('_')) { if (k === '_r') o._r = Number(campi[k].integerValue); continue; }
+    const v = campi[k];
+    if ('stringValue' in v) o[k] = colonneData.includes(k) && /^\d{4}-\d{2}-\d{2}$/.test(v.stringValue) ? { g: v.stringValue } : v.stringValue;
+    else if ('integerValue' in v) o[k] = Number(v.integerValue);
+    else if ('doubleValue' in v) o[k] = v.doubleValue;
+    else if ('booleanValue' in v) o[k] = v.booleanValue;
+    else if ('timestampValue' in v) o[k] = { t: Date.parse(v.timestampValue) };
+    else o[k] = '';
+  }
+  return o;
+}
+/** Dal formato conservato (righe per id) a quello del motore (intestazioni + righe, nell'ordine del Foglio). */
+function perMotore(st) {
+  const tabelle = {};
+  Object.keys(st.tabelle).forEach(nome => {
+    const righe = Object.values(st.tabelle[nome]).sort((a, b) => (a._r || 0) - (b._r || 0));
+    const h = [...new Set(righe.flatMap(o => Object.keys(o)))].filter(k => !k.startsWith('_'));
+    tabelle[nome] = { h, r: righe.map(o => h.map(k => (k in o ? o[k] : ''))) };
+  });
+  return { tabelle, meta: st.meta || {} };
+}
+
+// ------------------------------------------------------------------ Firestore (tappa 2)
+// Lettura diretta con l'API REST (niente librerie): permesso firmato da Apps Script (getAccessoFirebase),
+// scambiato con Firebase Authentication e rinnovato da solo. Le regole permettono solo la lettura.
+const FB_CHIAVE = 'agente_fb';
+const Fb = {
+  cfg: null, assente: false,
+  leggi() { try { this.cfg = JSON.parse(localStorage.getItem(FB_CHIAVE)) || null; } catch (e) { this.cfg = null; } },
+  salva() { try { localStorage.setItem(FB_CHIAVE, JSON.stringify(this.cfg)); } catch (e) { /* resta in memoria */ } },
+  dimentica() { this.cfg = null; try { localStorage.removeItem(FB_CHIAVE); } catch (e) { /* niente */ } },
+  /** Permesso da Apps Script → accesso a Firebase. false se Firebase non è (ancora) collegato. */
+  async accedi() {
+    const a = await chiamaRete('getAccessoFirebase');
+    if (!a) { this.assente = true; this.dimentica(); return false; }
+    const r = await this.post(`${a.url.identitytoolkit}accounts:signInWithCustomToken?key=${encodeURIComponent(a.apiKey)}`,
+      { token: a.token, returnSecureToken: true });
+    delete a.token;
+    this.cfg = Object.assign(a, { idToken: r.idToken, refresh: r.refreshToken, scade: Date.now() + Number(r.expiresIn) * 1000 });
+    this.salva();
+    return true;
+  },
+  async token() {
+    if (!this.cfg && !(await this.accedi())) return null;
+    if (Date.now() < this.cfg.scade - 120000) return this.cfg.idToken;
+    try {
+      const res = await fetch(`${this.cfg.url.securetoken}token?key=${encodeURIComponent(this.cfg.apiKey)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(this.cfg.refresh),
+      });
+      if (!res.ok) throw new Error('Rinnovo non riuscito: ' + res.status);
+      const r = await res.json();
+      Object.assign(this.cfg, { idToken: r.id_token, refresh: r.refresh_token, scade: Date.now() + Number(r.expires_in) * 1000 });
+      this.salva();
+      return this.cfg.idToken;
+    } catch (e) {
+      if (e instanceof TypeError) throw e;   // rete assente
+      return (await this.accedi()) ? this.cfg.idToken : null;
+    }
+  },
+  async post(url, corpo, token) {
+    const res = await fetch(url, {
+      method: 'POST', body: JSON.stringify(corpo),
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
+    });
+    if (!res.ok) { const err = new Error('Firebase ' + res.status); err.stato = res.status; throw err; }
+    return res.json();
+  },
+  /** Documenti di una raccolta aggiornati dopo `dopo` (ISO), o tutti. null se Firebase non è collegato. */
+  async novita(raccolta, dopo) {
+    const q = { from: [{ collectionId: raccolta }] };
+    if (dopo) {
+      q.where = { fieldFilter: { field: { fieldPath: '_agg' }, op: 'GREATER_THAN', value: { timestampValue: dopo } } };
+      q.orderBy = [{ field: { fieldPath: '_agg' } }];
+    }
+    const url = `${this.cfg.url.firestore}projects/${this.cfg.progetto}/databases/(default)/documents:runQuery`;
+    let t = await this.token();
+    if (!t) return null;
+    try { return await this.post(url, { structuredQuery: q }, t); }
+    catch (e) {
+      if (e.stato !== 401 && e.stato !== 403) throw e;
+      // permesso revocato (nuova chiave) o scaduto: se ne chiede uno nuovo; con la chiave revocata → ErroreCollegamento
+      this.dimentica();
+      if (!(await this.accedi())) return null;
+      return this.post(url, { structuredQuery: q }, this.cfg.idToken);
+    }
   },
 };
 Locale.avvia();

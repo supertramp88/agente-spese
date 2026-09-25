@@ -545,6 +545,7 @@ ${voceAltro('info', 'info', 'Guida', 'Regole e consigli in breve')}
 <span class="grow"><span style="display:block;font-size:15px;font-weight:500;">Database</span><span class="small">Il foglio Google con tutti i dati</span></span>${ic('right', 18)}</a>
 <button type="button" class="row" data-azione="alt-scollega" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;text-align:left;"><span class="badge">${ic('x', 20)}</span>
 <span class="grow"><span style="display:block;font-size:15px;font-weight:500;">Scollega questo dispositivo</span><span class="small">Cancella chiave e dati salvati su questo dispositivo</span></span></button>
+<p class="small" style="margin:6px 0 10px;">${esc(Locale.descrizione())}</p>
 </section>
 
 <section class="card" style="gap:0;"><div class="sechead" style="padding-bottom:6px;"><h2 class="h2">Rimborsi attesi</h2><span class="strong num">${euro(d.totaleRimborsi)}</span></div>
