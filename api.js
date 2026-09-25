@@ -119,9 +119,12 @@ const Locale = {
       let cambiato = false;
       do {
         this.ancora = false;
+        // con i movimenti su Firestore (tappa 3) il server li legge da lì: se Firestore non risponde non serve
+        // ripiegare su getDati, e i dati sul dispositivo restano la base per salvare (in coda)
+        const soloFs = !!(this.st && Fb.cfg && Fb.cfg.scritture);
         let fb = null;
-        if (!this.forzaApps && !Fb.assente) {
-          try { fb = await this.daFirestore(); } catch (e) { if (e instanceof ErroreCollegamento) throw e; fb = null; }
+        if ((!this.forzaApps || soloFs) && !Fb.assente) {
+          try { fb = await this.daFirestore(); } catch (e) { if (e instanceof ErroreCollegamento || soloFs) throw e; fb = null; }
         }
         this.forzaApps = false;
         cambiato = (fb !== null ? fb : await this.daApps()) || cambiato;
@@ -193,12 +196,17 @@ const Locale = {
   /** Aggiornamento in background (apertura, ritorno in primo piano): invio delle modifiche in coda, novità,
    *  e una volta per apertura un permesso nuovo (porta anche le impostazioni del server, come "scritture"). */
   aggiorna() {
-    return this.invia()
+    // prima il permesso nuovo (una volta per apertura): porta "scritture" anche se Firestore non risponde,
+    // così i salvataggi restano comunque sul dispositivo, in coda
+    let permesso = Promise.resolve();
+    if (!this.permessoFresco && Fb.cfg) {
+      this.permessoFresco = true;
+      permesso = Fb.accedi().catch(e => { if (e instanceof ErroreCollegamento) throw e; });
+    }
+    return permesso
+      .then(() => this.invia())
       .then(() => this.sincronizza())
-      .then(async c => {
-        if (c && this.alCambio) await this.alCambio();
-        if (!this.permessoFresco && Fb.cfg) { this.permessoFresco = true; await Fb.accedi(); await this.invia(); }
-      })
+      .then(c => { if (c && this.alCambio) return this.alCambio(); })
       .catch(e => { if (e instanceof ErroreCollegamento && this.alScollegato) this.alScollegato(e); /* altrimenti si riproverà */ });
   },
 
@@ -354,7 +362,11 @@ const Fb = {
       method: 'POST', body: JSON.stringify(corpo),
       headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
     });
-    if (!res.ok) { const err = new Error('Firebase ' + res.status); err.stato = res.status; throw err; }
+    if (!res.ok) {
+      const err = new Error(res.status === 429 ? 'limite giornaliero gratuito di Firebase raggiunto, riprovo più tardi' : 'Firebase ' + res.status);
+      err.stato = res.status;
+      throw err;
+    }
     return res.json();
   },
   /** Scrive i movimenti in coda (le regole controllano ogni campo). Permesso scaduto o revocato: uno nuovo e si riprova. */
