@@ -145,3 +145,4 @@ select.input{appearance:auto}
   .btn:hover{filter:brightness(1.06)}
   a.row:hover,button.row:hover{background:var(--line2)}
 }
+.linkbtn{display:inline-flex;align-items:center;gap:4px;border:0;background:none;padding:4px 8px;font:inherit;font-size:13px;font-weight:600;color:var(--acc);cursor:pointer}.linkbtn:hover{color:var(--accH)}

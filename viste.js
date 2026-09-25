@@ -106,7 +106,9 @@ function renderAnalisi() {
 <button type="button" class="${a.vista === 'mese' ? 'on' : ''}" data-azione="an-vista" data-v="mese" aria-pressed="${a.vista === 'mese'}">Mese</button>
 <button type="button" class="${a.vista === 'anno' ? 'on' : ''}" data-azione="an-vista" data-v="anno" aria-pressed="${a.vista === 'anno'}">Anno</button></div>
 <div class="mesenav"><button class="iconbtn" data-azione="an-sposta" data-d="-1" aria-label="Periodo precedente">${ic('left')}</button>
+<span style="display:flex;flex-direction:column;align-items:center;">
 <span class="strong">${a.vista === 'mese' ? `${maiusc(MESI[a.mese - 1])} ${a.anno}` : `${a.anno} fino a ${MESI[a.mese - 1]}`}</span>
+${a.anno !== S.avvio.mese.anno || a.mese !== S.avvio.mese.mese ? `<button type="button" class="linkbtn" data-azione="an-oggi">${a.vista === 'mese' ? 'Torna al mese corrente' : 'Torna all’anno corrente'}</button>` : ''}</span>
 <button class="iconbtn" data-azione="an-sposta" data-d="1" aria-label="Periodo successivo">${ic('right')}</button></div>
 <div id="anCorpo">${memoDati(`an:${a.anno}-${a.mese}`) ? '' : caricamento()}</div>
 </main>`;
@@ -601,6 +603,7 @@ ${d.automatismi ? `<span class="status ok">${ic('check', 14, 2.4)} Attivi: repor
     : `<span class="status ko">${ic('alert', 14, 2)} Non attivi</span><span class="small">Nell’editor Apps Script esegui una volta <b>installaAutomatismi</b> (file Automatismi.gs).</span>`}
 <span class="small">Ultimo backup: ${d.ultimoBackup ? esc(d.ultimoBackup.quando) : 'nessuno'}</span>
 </section>
+<p class="small" style="text-align:center;margin:0 0 8px;">Agente $$ · versione ${esc(APP_VERSIONE)}</p>
 </main>`;
   if ($('#altScroll')) $('#altScroll').scrollTop = scroll;
 }
@@ -726,6 +729,7 @@ function azioneViste(a, el) {
     if (d > new Date(oggi.getFullYear(), oggi.getMonth(), 1)) { d.setFullYear(oggi.getFullYear()); d.setMonth(oggi.getMonth()); }
     S.an.anno = d.getFullYear(); S.an.mese = d.getMonth() + 1; renderAnalisi(); return true;
   }
+  if (a === 'an-oggi') { S.an.anno = S.avvio.mese.anno; S.an.mese = S.avvio.mese.mese; renderAnalisi(); return true; }
   if (a === 'an-apri-mese') { S.an.anno = Number(el.dataset.a); S.an.mese = Number(el.dataset.m); S.an.vista = 'mese'; renderAnalisi(); return true; }
   if (a === 'an-apri') { S.an.aperte[v] = !S.an.aperte[v]; renderAnalisiCorpo(); return true; }
   if (a === 'an-movimenti') {
