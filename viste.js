@@ -623,7 +623,7 @@ ${blocco('Registrare', 'plus', [
   '<b>Importo + categoria</b> bastano: il resto è facoltativo.',
   '<b>Ora</b>: proposta quella attuale per le spese di oggi (dallo scontrino, se c’è); per ieri o un’altra data inseriscila se ti serve.',
   '<b>Scontrino</b>: foto → controlla i campi segnati <i>da verificare</i> → Salva.',
-  '<b>Salva</b> torna subito indietro; se qualcosa va storto compare <i>Non salvato · Riapri</i>.',
+  '<b>Salva</b> è immediato, anche senza rete: la spesa va sul database appena possibile (in <i>Altro</i> compare «modifiche da inviare» finché non è partita).',
   '<b>Rimborso</b> = soldi che ti tornano (riduce la spesa). <b>Entrata</b> = non conta nella spesa.',
   '<b>Spese condivise</b>: registra solo la tua quota.',
   '<b>Lavoro anticipato</b>: <i>Da rimborsare</i>; quando rientra → Altro → Rimborsi attesi → Rimborsato.',
@@ -646,6 +646,7 @@ ${blocco('Budget', 'chart', [
 ${blocco('In automatico', 'check', [
   '<b>Spese ricorrenti</b> (Starlink, inReach…) create da sole il giorno dovuto.',
   '<b>Report</b>: venerdì ~19:30 · giorno 1 alle 8 · primo lunedì di gennaio.',
+  '<b>Foglio Google</b>: ogni notte alle 6 riceve la copia dei movimenti (è da consultare: le correzioni si fanno dall’app).',
   '<b>Backup</b> del foglio ogni domenica (tiene gli ultimi 12).',
 ])}
 ${blocco('Buone abitudini', 'list', [

@@ -99,45 +99,69 @@ function getMovimenti(anno, mese, testo, filtri) {
  * Restituisce l'id e i dati di avvio aggiornati (così la pagina non deve fare un'altra chiamata).
  */
 function salvaMovimento(m) {
-  const errore = validaMovimento_(m);
-  if (errore) throw new Error(errore);
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    if (movimentiSuFirestore_()) {
+      const o = movimentoDaSalvare_(m, new Date());
+      scriviMovimentiFs_([o]);
+      return { id: o.id, avvio: getAvvio() };
+    }
+    const errore = validaMovimento_(m);
+    if (errore) throw new Error(errore);
     assicuraColonne_('Movimenti');
     datiCambiati_();
     const sh = db_().getSheetByName('Movimenti');
-    const adesso = new Date();
     const riga = trovaRiga_(sh, m.id);
-    const valori = [
-      m.id || nuovoId_(),
-      dataDaIso_(m.data),
-      arrotonda_(Number(m.importo)),
-      m.tipo,
-      m.categoria_id,
-      m.progetto_id || '',
-      String(m.descrizione).trim().slice(0, 200),
-      String(m.note || '').trim().slice(0, 500),
-      m.rimborsabile || '',
-      m.importo_orig === '' || m.importo_orig == null ? '' : Number(m.importo_orig),
-      String(m.valuta_orig || '').trim().toUpperCase().slice(0, 3),
-      m.allegato_url || '',
-      riga ? sh.getRange(riga, 13).getValue() : (m.fonte === 'SCONTRINO' ? 'SCONTRINO' : 'APP'),
-      riga ? sh.getRange(riga, 14).getValue() : '',
-      riga ? sh.getRange(riga, 15).getValue() : adesso,
-      adesso,
-      false,
-      m.ora || '',
-    ];
-    if (riga) {
-      sh.getRange(riga, 1, 1, valori.length).setValues([valori]);
-    } else {
-      scriviRighe_(db_(), 'Movimenti', [valori]);
-    }
-    return { id: valori[0], avvio: getAvvio() };
+    const esistente = riga ? comeOggetti_([SCHEMA.Movimenti, sh.getRange(riga, 1, 1, SCHEMA.Movimenti.length).getValues()[0]])[0] : null;
+    const o = costruisciMovimento_(m, esistente, new Date());
+    const valori = SCHEMA.Movimenti.map(k => o[k]);
+    if (riga) sh.getRange(riga, 1, 1, valori.length).setValues([valori]);
+    else scriviRighe_(db_(), 'Movimenti', [valori]);
+    return { id: o.id, avvio: getAvvio() };
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Il movimento come riga completa (tutte le colonne), da un modulo già validato. Usata anche dall'app (motore.js). */
+function costruisciMovimento_(m, esistente, adesso) {
+  return {
+    id: m.id || nuovoId_(),
+    data: dataDaIso_(m.data),
+    importo: arrotonda_(Number(m.importo)),
+    tipo: m.tipo,
+    categoria_id: m.categoria_id,
+    progetto_id: m.progetto_id || '',
+    descrizione: String(m.descrizione).trim().slice(0, 200),
+    note: String(m.note || '').trim().slice(0, 500),
+    rimborsabile: m.rimborsabile || '',
+    importo_orig: m.importo_orig === '' || m.importo_orig == null ? '' : Number(m.importo_orig),
+    valuta_orig: String(m.valuta_orig || '').trim().toUpperCase().slice(0, 3),
+    allegato_url: m.allegato_url || '',
+    fonte: esistente ? esistente.fonte : (m.fonte === 'SCONTRINO' ? 'SCONTRINO' : 'APP'),
+    ricorrente_id: esistente ? esistente.ricorrente_id : '',
+    creato_il: esistente ? esistente.creato_il : adesso,
+    modificato_il: adesso,
+    eliminato: false,
+    ora: m.ora || '',
+  };
+}
+
+/** Validazione + riga completa, cercando il movimento esistente tra quelli letti (server su Firestore e app). */
+function movimentoDaSalvare_(m, adesso) {
+  const errore = validaMovimento_(m);
+  if (errore) throw new Error(errore);
+  const esistente = m.id ? movimenti_().find(x => x.id === m.id) : null;
+  if (m.id && !esistente) throw new Error('Movimento non trovato: ' + m.id);
+  return costruisciMovimento_(m, esistente, adesso);
+}
+
+/** La riga del movimento con un campo cambiato (cestino, rimborso). */
+function movimentoModificato_(id, modifiche, adesso) {
+  const x = movimenti_().find(m => m.id === id);
+  if (!x) throw new Error('Movimento non trovato: ' + id);
+  return Object.assign(x, modifiche, { modificato_il: adesso });
 }
 
 /** Sposta nel cestino (eliminato = TRUE). Reversibile con ripristinaMovimento. */
@@ -309,6 +333,10 @@ function impostaEliminato_(id, valore) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    if (movimentiSuFirestore_()) {
+      scriviMovimentiFs_([movimentoModificato_(id, { eliminato: valore }, new Date())]);
+      return { id, avvio: getAvvio() };
+    }
     datiCambiati_();
     const sh = db_().getSheetByName('Movimenti');
     const riga = trovaRiga_(sh, id);
@@ -754,5 +782,11 @@ function carica(dati) {
 function esegui(fn, args) {
   return JSON.parse(JSON.stringify(FUNZIONI[fn].apply(null, args || [])));
 }
-return { carica, esegui, pronto: () => !!D, funzioni: Object.keys(FUNZIONI) };
+/** Tappa 3: il movimento da scrivere, come riga completa con le date come Date (stessa logica del server). */
+function prepara(op, args) {
+  if (op === 'salva') return movimentoDaSalvare_(args[0], new Date());
+  if (op === 'eliminato') return movimentoModificato_(args[0], { eliminato: !!args[1] }, new Date());
+  throw new Error('Operazione sconosciuta: ' + op);
+}
+return { carica, esegui, prepara, pronto: () => !!D, funzioni: Object.keys(FUNZIONI) };
 })();

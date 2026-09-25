@@ -30,6 +30,7 @@ class ErroreCollegamento extends Error {}
 /** Chiama una funzione del server. Le letture che il dispositivo sa calcolare da sé (vedi Locale) non vanno
  *  in rete; dopo ogni modifica i dati sul dispositivo si aggiornano. */
 async function chiama(fn, ...args) {
+  if (Locale.scriveQui(fn)) return Locale.scrivi(fn, args);
   if (Locale.serve(fn)) return Locale.esegui(fn, args);
   const r = await chiamaRete(fn, ...args);
   if (!SOLO_LETTURA.test(fn)) Locale.dopoScrittura();
@@ -95,6 +96,8 @@ const Locale = {
   alCambio: null,   // impostata da app.js: ridisegna con i dati nuovi
   avvia() {
     if (typeof Motore === 'undefined') return;
+    Fb.leggi(); Coda.leggi();
+    window.addEventListener('online', () => this.invia().catch(() => { }));
     try {
       const d = JSON.parse(localStorage.getItem(DATI_CHIAVE));
       if (d && d.modo === 'fb') { Motore.carica(perMotore(d)); this.st = d; this.affidabile = true; }
@@ -154,8 +157,9 @@ const Locale = {
       for (const x of risposte[i]) {
         if (!x.document) continue;
         const f = x.document.fields || {}, id = x.document.name.split('/').pop();
-        const agg = f._agg ? Date.parse(f._agg.timestampValue) : 0;
+        const agg = f._agg ? msOrario(f._agg.timestampValue) : 0;
         if (agg > (st.agg[nome] || 0)) st.agg[nome] = agg;
+        if (nome === 'Movimenti' && Coda.contiene(id)) continue;   // modifica fatta qui e non ancora inviata: vale quella
         if (f._eliminato) { if (righe[id]) { delete righe[id]; cambiato = true; } continue; }
         const h = f._h ? f._h.stringValue : '';
         if (righe[id] && righe[id]._h === h) continue;
@@ -169,10 +173,13 @@ const Locale = {
   },
   /** Per Gestione: da dove arrivano i dati e quando sono stati controllati l'ultima volta. */
   descrizione() {
-    if (!this.affidabile) return 'Dati: chiesti ogni volta al server.';
+    const n = Coda.lista.length;
+    const coda = n ? ` ${n === 1 ? '1 modifica da inviare' : n + ' modifiche da inviare'}${Coda.errore ? ' (' + Coda.errore + ')' : ''}.` : '';
+    if (!this.affidabile && !this.st) return 'Dati: chiesti ogni volta al server.' + coda;
     const da = this.st ? 'Firestore' : 'server';
     const quando = this.ultimo ? new Date(this.ultimo).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
-    return `Dati sul dispositivo, aggiornati da ${da}${quando ? ' · controllati alle ' + quando : ''}.`;
+    const salva = this.st && Fb.cfg && Fb.cfg.scritture ? ' Le spese si salvano sul dispositivo e vanno su Firestore.' : '';
+    return `Dati sul dispositivo, aggiornati da ${da}${quando ? ' · controllati alle ' + quando : ''}.${salva}${coda}`;
   },
   conserva(d) {
     try { localStorage.setItem(DATI_CHIAVE, JSON.stringify(d)); }
@@ -183,18 +190,100 @@ const Locale = {
       .finally(() => { if (this.attesa === attesa) this.attesa = null; });
     this.attesa = attesa;
   },
-  /** Aggiornamento in background (apertura, ritorno in primo piano). */
+  /** Aggiornamento in background (apertura, ritorno in primo piano): invio delle modifiche in coda, novità,
+   *  e una volta per apertura un permesso nuovo (porta anche le impostazioni del server, come "scritture"). */
   aggiorna() {
-    return this.sincronizza().then(c => { if (c && this.alCambio) return this.alCambio(); })
+    return this.invia()
+      .then(() => this.sincronizza())
+      .then(async c => {
+        if (c && this.alCambio) await this.alCambio();
+        if (!this.permessoFresco && Fb.cfg) { this.permessoFresco = true; await Fb.accedi(); await this.invia(); }
+      })
       .catch(e => { if (e instanceof ErroreCollegamento && this.alScollegato) this.alScollegato(e); /* altrimenti si riproverà */ });
+  },
+
+  // ---------------------------------------------------------------- tappa 3: movimenti salvati qui, poi inviati
+  /** Salva, elimina, ripristina: sul dispositivo subito, verso Firestore in background (anche offline). */
+  scriveQui(fn) {
+    return ['salvaMovimento', 'eliminaMovimento', 'ripristinaMovimento'].includes(fn)
+      && !!(this.st && Fb.cfg && Fb.cfg.scritture && Fb.cfg.colonneMovimenti);
+  },
+  async scrivi(fn, args) {
+    if (this.attesa) await this.attesa;
+    const o = fn === 'salvaMovimento' ? Motore.prepara('salva', args) : Motore.prepara('eliminato', [args[0], fn === 'eliminaMovimento']);
+    const col = Fb.cfg.colonneData.Movimenti || [], righe = this.st.tabelle.Movimenti;
+    const prima = righe[o.id];
+    const h = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const r = prima && prima._r != null ? prima._r : Date.now();
+    const campi = { _h: { stringValue: h }, _r: { integerValue: String(r) } };
+    Fb.cfg.colonneMovimenti.forEach(k => { campi[k] = versoFirestore(o[k], col.includes(k)); });
+    righe[o.id] = Object.assign(daFirestore(campi, col), { _h: h, _r: r });
+    Motore.carica(perMotore(this.st)); this.conserva(this.st);
+    Coda.metti({ id: o.id, campi, nuovo: !prima, op: fn, args });
+    this.invia().catch(() => { });   // se non riesce resta in coda: si riprova al ritorno della rete
+    return { id: o.id, avvio: Motore.esegui('getAvvio', []), inCoda: true };
+  },
+  /** Invia le modifiche in coda; restano in coda (e si riprova) se la rete o Firebase non rispondono. */
+  invia() {
+    if (this.inviando) return this.inviando;
+    if (!Coda.lista.length || !Fb.cfg) return Promise.resolve();
+    this.inviando = (async () => {
+      try {
+        while (Coda.lista.length) {
+          const lotto = Coda.lista.slice(0, 100);
+          if (Fb.cfg.scritture) await Fb.scrivi(lotto);
+          else for (const x of lotto) await chiamaRete(x.op, ...(x.op === 'salvaMovimento' && x.nuovo ? [Object.assign({}, x.args[0], { id: '' })] : x.args));
+          Coda.togli(lotto);
+          Coda.errore = '';
+        }
+      } catch (e) {
+        Coda.errore = e instanceof TypeError ? 'rete assente' : (e && e.message) || String(e);
+        if (e instanceof ErroreCollegamento) throw e;
+      } finally { this.inviando = null; }
+    })();
+    return this.inviando;
   },
   alScollegato: null,   // impostata da app.js: schermata di collegamento
   /** Chiave non più valida (per esempio dispositivo perso e chiave rigenerata): via i dati dal dispositivo. */
   dimentica() {
-    this.affidabile = false; this.ver = ''; this.st = null; Fb.dimentica();
-    ['agente_dati', 'agente_memo', 'agente_avvio'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* niente */ } });
+    this.affidabile = false; this.ver = ''; this.st = null; Fb.dimentica(); Coda.lista = [];
+    ['agente_dati', 'agente_memo', 'agente_avvio', 'agente_coda'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* niente */ } });
   },
 };
+
+// Modifiche ai movimenti non ancora arrivate su Firestore (una per movimento: vale l'ultima), conservate sul dispositivo.
+const Coda = {
+  lista: [], errore: '',
+  leggi() { try { this.lista = JSON.parse(localStorage.getItem('agente_coda')) || []; } catch (e) { this.lista = []; } },
+  salva() { try { localStorage.setItem('agente_coda', JSON.stringify(this.lista)); } catch (e) { /* resta in memoria */ } },
+  contiene(id) { return this.lista.some(x => x.id === id); },
+  metti(x) {
+    const prima = this.lista.find(y => y.id === x.id);
+    if (prima) x.nuovo = prima.nuovo;
+    this.lista = this.lista.filter(y => y.id !== x.id).concat(x); this.salva();
+  },
+  /** Toglie quelle inviate, se nel frattempo non sono state modificate di nuovo. */
+  togli(inviate) {
+    this.lista = this.lista.filter(y => !inviate.some(x => x.id === y.id && x.campi._h.stringValue === y.campi._h.stringValue));
+    this.salva();
+  },
+};
+
+/** Valore di una riga (date come Date) → campo Firestore, come fbValore_ in Firestore.gs. */
+function versoFirestore(v, soloData) {
+  if (v === null || v === undefined) return { stringValue: '' };
+  if (v instanceof Date) {
+    if (!soloData) return { timestampValue: v.toISOString() };
+    const d = n => String(n).padStart(2, '0');
+    return { stringValue: `${v.getFullYear()}-${d(v.getMonth() + 1)}-${d(v.getDate())}` };
+  }
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  return { stringValue: String(v) };
+}
+
+/** Orario di Firestore (fino ai microsecondi) → millisecondi; Safari non legge più di 3 decimali. */
+function msOrario(s) { return Date.parse(String(s).replace(/(\.\d{3})\d+/, '$1')) || 0; }
 
 // Firestore → valori come nel Foglio (date di calendario {g}, istanti {t}: come getDati)
 function daFirestore(campi, colonneData) {
@@ -206,7 +295,7 @@ function daFirestore(campi, colonneData) {
     else if ('integerValue' in v) o[k] = Number(v.integerValue);
     else if ('doubleValue' in v) o[k] = v.doubleValue;
     else if ('booleanValue' in v) o[k] = v.booleanValue;
-    else if ('timestampValue' in v) o[k] = { t: Date.parse(v.timestampValue) };
+    else if ('timestampValue' in v) o[k] = { t: msOrario(v.timestampValue) };
     else o[k] = '';
   }
   return o;
@@ -267,6 +356,23 @@ const Fb = {
     });
     if (!res.ok) { const err = new Error('Firebase ' + res.status); err.stato = res.status; throw err; }
     return res.json();
+  },
+  /** Scrive i movimenti in coda (le regole controllano ogni campo). Permesso scaduto o revocato: uno nuovo e si riprova. */
+  async scrivi(lotto) {
+    const base = `projects/${this.cfg.progetto}/databases/(default)/documents`;
+    const corpo = { writes: lotto.map(x => ({ update: { name: `${base}/movimenti/${x.id}`, fields: x.campi },
+      updateTransforms: [{ fieldPath: '_agg', setToServerValue: 'REQUEST_TIME' }] })) };
+    const url = `${this.cfg.url.firestore}${base}:commit`;
+    const t = await this.token();
+    if (!t) throw new Error('Firebase non collegato');
+    try { return await this.post(url, corpo, t); }
+    catch (e) {
+      if (e.stato !== 401 && e.stato !== 403) throw e;
+      this.dimentica();
+      if (!(await this.accedi())) throw new Error('Firebase non collegato');
+      try { return await this.post(url, corpo, this.cfg.idToken); }
+      catch (e2) { throw new Error(e2.stato === 403 ? 'Firestore non accetta la modifica' : e2.message); }
+    }
   },
   /** Documenti di una raccolta aggiornati dopo `dopo` (ISO), o tutti. null se Firebase non è collegato. */
   async novita(raccolta, dopo) {

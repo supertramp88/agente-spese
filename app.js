@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.09.25 · 27cfdf';
+const APP_VERSIONE = '2026.09.25 · 282873';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -535,7 +535,8 @@ async function salva(poi) {
     const r = await chiama('salvaMovimento', payload);
     S.avvio = r.avvio; indicizza(); datiModificati();
     ridisegna();
-    toast(nuovo ? `Salvato: ${payload.descrizione} ${euro(importo)}` : 'Modifiche salvate',
+    const offline = r.inCoda && navigator.onLine === false ? ' · verrà inviato quando torna la rete' : '';
+    toast((nuovo ? `Salvato: ${payload.descrizione} ${euro(importo)}` : 'Modifiche salvate') + offline,
       nuovo ? { etichetta: 'Annulla', fn: () => annullaSalvataggio(r.id) } : null);
   } catch (e) {
     toast('Non salvato: ' + ((e && e.message) || e), { etichetta: 'Riapri', fn: () => { S.form = copiaForm; vai('form'); } }, true);
