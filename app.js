@@ -555,7 +555,17 @@ function ridisegna() {
   if (S.vista === 'home') renderHome();
   else if (S.vista === 'movimenti') caricaMovimenti();
   else if (S.vista === 'budget' && !(S.bud && S.bud.aperto)) renderBudget();   // non mentre si modifica un budget
+  else if (S.vista === 'analisi' && S.an) caricaAnalisi();
+  else if (S.vista === 'progetti') renderProgetti();
+  else if (S.vista === 'progetto') renderProgetto();
 }
+Locale.alScollegato = e => renderCollega(e.message);
+/** Dati sul dispositivo appena aggiornati dal server (modifiche da un altro dispositivo, spese ricorrenti…). */
+Locale.alCambio = async () => {
+  datiModificati();
+  try { S.avvio = await chiama('getAvvio'); indicizza(); } catch (e) { return; }
+  if (S.vista !== 'form') ridisegna();
+};
 async function annullaSalvataggio(id) {
   try { const r = await chiama('eliminaMovimento', id); S.avvio = r.avvio; indicizza(); datiModificati(); vai(S.vista === 'form' ? 'home' : S.vista); toast('Inserimento annullato'); }
   catch (e) { errore(e); }
@@ -750,8 +760,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !S.avvio || !S.avvioT || rinfrescoInCorso) return;
   if (Date.now() - S.avvioT < RINFRESCO_MS || !Config.collegato()) return;
   rinfrescoInCorso = true;
+  // prima con i dati sul dispositivo (se è cambiato il giorno cambiano "oggi" e il mese), poi le novità dal server
   chiama('getAvvio')
     .then(a => { S.avvio = a; indicizza(); datiModificati(); if (S.vista !== 'form') ridisegna(); })
+    .then(() => Locale.aggiorna())
     .catch(() => { /* si riproverà al prossimo ritorno */ })
     .finally(() => { rinfrescoInCorso = false; });
 });
@@ -777,6 +789,7 @@ async function avviaApp() {
       if (!salvato) throw e;
       toast('Dati non aggiornati: ' + e.message, null, true);
     }
+    Locale.aggiorna();   // dati sul dispositivo: novità dal server (la prima volta li scarica tutti)
     setTimeout(precarica, 1500);
     const p = memoria.leggi();   // lettura scontrino interrotta da una ricarica della pagina
     if (p && Date.now() - p.avvio < 10 * 60 * 1000) {

@@ -27,9 +27,17 @@ window.addEventListener('hashchange', () => { if (leggiLinkCollegamento()) locat
 
 class ErroreCollegamento extends Error {}
 
-/** Chiama una funzione del server. Le letture (get…, statoScontrino) si ritentano una volta se la rete
- *  o Google rispondono male (capita: server occupato, nuova versione appena pubblicata). */
+/** Chiama una funzione del server. Le letture che il dispositivo sa calcolare da sé (vedi Locale) non vanno
+ *  in rete; dopo ogni modifica i dati sul dispositivo si aggiornano. */
 async function chiama(fn, ...args) {
+  if (Locale.serve(fn)) return Locale.esegui(fn, args);
+  const r = await chiamaRete(fn, ...args);
+  if (!SOLO_LETTURA.test(fn)) Locale.dopoScrittura();
+  return r;
+}
+/** Le letture (get…, statoScontrino) si ritentano una volta se la rete o Google rispondono male
+ *  (capita: server occupato, nuova versione appena pubblicata). */
+async function chiamaRete(fn, ...args) {
   const lettura = /^get|^statoScontrino$/.test(fn);
   try { return await chiamaUnaVolta(fn, args); }
   catch (e) {
@@ -67,12 +75,74 @@ async function chiamaUnaVolta(fn, args) {
     throw new Error(`Il server non ha risposto correttamente${res.status && res.status !== 200 ? ` (errore ${res.status})` : ''}: riprova tra qualche secondo.`);
   }
   if (!r.ok) {
-    if (r.codice === 'CHIAVE') throw new ErroreCollegamento(r.errore);
+    if (r.codice === 'CHIAVE') { Locale.dimentica(); throw new ErroreCollegamento(r.errore); }
     const err = new Error(r.errore); err.daServer = true;   // errore vero del server: ritentare non serve
     throw err;
   }
   return r.dati;
 }
+
+// ------------------------------------------------------------------ dati sul dispositivo
+// Movimenti, categorie, progetti e budget restano anche sul dispositivo e le schermate si calcolano qui
+// (motore.js: gli stessi conti del server). Si scarica di nuovo solo se sul server qualcosa è cambiato:
+// all'apertura, al ritorno in primo piano e dopo ogni modifica. Finché i dati dopo una modifica non sono
+// arrivati, le schermate aspettano; se non arrivano, si torna a chiedere tutto al server.
+const SOLO_LETTURA = /^get|^statoScontrino$|^leggiScontrino$|^salvaScontrino$|^inviaReportProva$/;
+const DATI_CHIAVE = 'agente_dati';
+const Locale = {
+  ver: '', affidabile: false, attesa: null, inCorso: null, ancora: false,
+  alCambio: null,   // impostata da app.js: ridisegna con i dati nuovi
+  avvia() {
+    if (typeof Motore === 'undefined') return;
+    try {
+      const d = JSON.parse(localStorage.getItem(DATI_CHIAVE));
+      if (d && d.ver) { Motore.carica(d); this.ver = d.ver; this.affidabile = true; }
+    } catch (e) { /* si riscaricano */ }
+  },
+  serve(fn) { return this.affidabile && Motore.funzioni.includes(fn); },
+  async esegui(fn, args) {
+    if (this.attesa) await this.attesa;
+    return this.affidabile ? Motore.esegui(fn, args) : chiamaRete(fn, ...args);
+  },
+  /** Scarica i dati se sono cambiati; true se sono cambiati. Richieste sovrapposte: una sola alla volta,
+   *  più un giro in più se nel frattempo ne è arrivata un'altra (per esempio dopo una modifica). */
+  sincronizza() {
+    if (typeof Motore === 'undefined') return Promise.resolve(false);
+    if (this.inCorso) { this.ancora = true; return this.inCorso; }
+    this.inCorso = (async () => {
+      let cambiato = false;
+      do {
+        this.ancora = false;
+        const d = await chiamaRete('getDati', this.ver);
+        if (!d.invariato) {
+          Motore.carica(d); this.ver = d.ver; cambiato = true;
+          try { localStorage.setItem(DATI_CHIAVE, JSON.stringify(d)); }
+          catch (e) { try { localStorage.removeItem(DATI_CHIAVE); } catch (e2) { /* niente */ } }
+        }
+        this.affidabile = true;
+      } while (this.ancora);
+      return cambiato;
+    })().finally(() => { this.inCorso = null; });
+    return this.inCorso;
+  },
+  dopoScrittura() {
+    const attesa = this.sincronizza().then(() => { }, () => { this.affidabile = false; })
+      .finally(() => { if (this.attesa === attesa) this.attesa = null; });
+    this.attesa = attesa;
+  },
+  /** Aggiornamento in background (apertura, ritorno in primo piano). */
+  aggiorna() {
+    return this.sincronizza().then(c => { if (c && this.alCambio) return this.alCambio(); })
+      .catch(e => { if (e instanceof ErroreCollegamento && this.alScollegato) this.alScollegato(e); /* altrimenti si riproverà */ });
+  },
+  alScollegato: null,   // impostata da app.js: schermata di collegamento
+  /** Chiave non più valida (per esempio dispositivo perso e chiave rigenerata): via i dati dal dispositivo. */
+  dimentica() {
+    this.affidabile = false; this.ver = '';
+    ['agente_dati', 'agente_memo', 'agente_avvio'].forEach(k => { try { localStorage.removeItem(k); } catch (e) { /* niente */ } });
+  },
+};
+Locale.avvia();
 
 // ------------------------------------------------------------------ aspetto (chiaro / scuro / automatico)
 const TEMA_CHIAVE = 'agente_tema';

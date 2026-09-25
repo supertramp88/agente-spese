@@ -652,7 +652,8 @@ ${blocco('Buone abitudini', 'list', [
 ])}
 ${blocco('Sicurezza', 'alert', [
   'Il link di collegamento contiene la chiave: <b>non inoltrarlo</b>.',
-  'Dispositivo perso: nell’editor esegui <i>creaChiaveApi</i> e poi <i>inviaLinkCollegamento</i>.',
+  'Dispositivo perso: nell’editor esegui <i>creaChiaveApi</i> e poi <i>inviaLinkCollegamento</i>. Alla prima connessione il dispositivo perso cancella i dati che conserva.',
+  'I dati restano anche <b>su questo dispositivo</b> (così le schermate sono immediate e funzionano offline): tienilo bloccato. <i>Scollega questo dispositivo</i> li cancella.',
 ])}
 </main>`;
 }
