@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.09.25 · b28f89';
+const APP_VERSIONE = '2026.09.27 · cc266e';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -209,7 +209,8 @@ function rigaMovimento(m, conGiorno, senzaProgetto) {
   const quando = conGiorno ? [breveGiorno(m.data), m.ora].filter(Boolean).join(' ') : (m.ora || '');
   const dett = [quando, m.tipo === 'RIMBORSO' ? 'Rimborso' : m.tipo === 'ENTRATA' ? 'Entrata' : '',
     nomeCat(m.categoria_id), senzaProgetto ? '' : nomeProg(m.progetto_id),
-    m.rimborsabile === 'DA_RIMBORSARE' ? 'da rimborsare' : m.rimborsabile === 'AZIENDA' ? 'pagata dall’azienda' : ''].filter(Boolean).join(' · ');
+    m.rimborsabile === 'DA_RIMBORSARE' ? 'da rimborsare' : m.rimborsabile === 'AZIENDA' ? 'pagata dall’azienda' : '',
+    Number(m.diviso_tra) > 1 ? `÷${m.diviso_tra} · totale ${euro(Number(m.importo_totale) || m.importo * m.diviso_tra)}` : ''].filter(Boolean).join(' · ');
   return `<a class="row" href="#" data-azione="modifica" data-id="${esc(m.id)}">
 <span class="badge">${ic(iconaCat(m.categoria_id), 20)}</span>
 <span class="grow"><span style="display:block;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(m.descrizione)}</span>
@@ -373,16 +374,19 @@ function nuovoForm(base) {
   return Object.assign({
     id: '', tipo: 'SPESA', importo: '', descrizione: '', categoria_id: '', progetto_id: '',
     dataScelta: 'oggi', data: S.avvio.oggi, ora: oggi ? oraAdesso() : '', oraManuale: false,
-    note: '', rimborsabile: '', importo_orig: '', valuta_orig: '',
+    note: '', rimborsabile: '', importo_orig: '', valuta_orig: '', diviso_tra: 1,
     allegato_url: '', fonte: 'APP', altro: false, tutte: false, catManuale: false, letti: {}, lettura: null,
   }, base || {});
 }
 function apriNuovo(base) { S.form = nuovoForm(base); vai('form'); }
 function apriModifica(m) {
   const dataScelta = m.data === S.avvio.oggi ? 'oggi' : m.data === ieriIso() ? 'ieri' : 'altra';
+  const parti = Number(m.diviso_tra) > 1 ? Number(m.diviso_tra) : 1;
+  const totale = parti > 1 ? (Number(m.importo_totale) || Math.round(m.importo * parti * 100) / 100) : m.importo;
   S.form = nuovoForm(Object.assign({}, m, {
-    importo: importoTesto(m.importo), dataScelta, catManuale: true, ora: m.ora || '', oraManuale: true,
-    altro: !!(m.note || m.rimborsabile || m.valuta_orig), importo_orig: m.importo_orig === '' ? '' : String(m.importo_orig),
+    importo: importoTesto(totale), diviso_tra: parti, dataScelta, catManuale: true, ora: m.ora || '', oraManuale: true,
+    altro: !!(m.note || m.rimborsabile || m.valuta_orig),
+    importo_orig: m.importo_orig === '' ? '' : String(parti > 1 ? Math.round(m.importo_orig * parti * 100) / 100 : m.importo_orig),
   }));
   vai('form');
 }
@@ -406,10 +410,11 @@ ${f.id ? `<button class="iconbtn" data-azione="elimina" aria-label="Elimina movi
 <div id="sezLettura"></div>
 <div class="seg" role="group" aria-label="Tipo di movimento" id="sezTipo"></div>
 <div class="field">
-<div class="sechead"><label class="label" for="fImporto">Importo in euro</label>${pill('importo')}</div>
+<div class="sechead"><label class="label" for="fImporto" id="lblImporto">${(f.diviso_tra || 1) > 1 ? 'Totale in euro' : 'Importo in euro'}</label>${pill('importo')}</div>
 <div class="importo-riga${f.letti.importo === 'dubbio' ? ' dubbio' : ''}"><span class="hero" style="color:var(--tx2);">€</span>
 <input id="fImporto" class="hero num" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(f.importo)}" style="border:0;background:transparent;width:100%;padding:0;color:var(--tx);outline:none;font-size:40px;"></div>
 </div>
+<div class="field" id="sezDivisa"></div>
 <div class="field">
 <div class="sechead"><label class="label" for="fDescr">Descrizione</label>${pill('descrizione')}</div>
 <input id="fDescr" class="input" autocomplete="off" placeholder="Es. Spesa Esselunga" value="${esc(f.descrizione)}" maxlength="200">
@@ -424,8 +429,9 @@ ${f.id ? `<button class="iconbtn" data-azione="elimina" aria-label="Elimina movi
 ${f.id ? '' : '<button class="btn sec" data-azione="salva" data-poi="nuovo" style="flex-grow:0;padding:0 16px;">Salva e nuova</button>'}
 <button class="btn" data-azione="salva" data-poi="home">${ic('check', 20, 2.2)} Salva</button>
 </div>`;
-  ['Lettura', 'Tipo', 'Categoria', 'Data', 'Progetto', 'Altro'].forEach(renderSezione);
+  ['Lettura', 'Tipo', 'Divisa', 'Categoria', 'Data', 'Progetto', 'Altro'].forEach(renderSezione);
   $('#fDescr').addEventListener('input', aggiornaSuggerimenti);
+  $('#fImporto').addEventListener('input', aggiornaQuota);
   if (!f.id && !f.lettura) setTimeout(() => $('#fImporto').focus(), 50);
 }
 function leggiCampi() {
@@ -437,6 +443,19 @@ function leggiCampi() {
   if (v('#fNote') !== undefined) f.note = v('#fNote');
   if (v('#fImpOrig') !== undefined) f.importo_orig = v('#fImpOrig');
   if (v('#fValuta') !== undefined) f.valuta_orig = v('#fValuta');
+  if (v('#fParti') !== undefined) f.diviso_tra = partiValide(v('#fParti'), 5);
+}
+/** Spesa divisa: numero di persone tra 1 e 20 (vuoto o non valido → `altrimenti`). */
+function partiValide(v, altrimenti) {
+  const n = Math.round(Number(String(v).replace(',', '.')));
+  return n >= 1 && n <= 20 ? n : altrimenti;
+}
+function testoQuota() {
+  const f = S.form, n = f.diviso_tra || 1, tot = leggiImporto($('#fImporto') ? $('#fImporto').value : f.importo);
+  return tot > 0 ? `Totale ${euro(tot)} · la tua quota ${euro(Math.round(tot / n * 100) / 100)}` : `Scrivi il totale: la tua quota è 1/${n}`;
+}
+function aggiornaQuota() {
+  if ($('#fQuota')) $('#fQuota').textContent = testoQuota();
 }
 function renderSezione(nome) {
   const f = S.form, el = $('#sez' + nome);
@@ -476,6 +495,16 @@ ${f.dataScelta === 'altra' ? `<input id="fDataAltra" class="input${f.letti.data 
 <div class="chips"><button type="button" class="chip${!f.progetto_id ? ' on' : ''}" data-azione="prog" data-v="">Nessuno</button>
 ${lista.map(chip).join('')}${interruttore}</div>
 ${f.tuttiProgetti ? `<span class="small">Chiusi e archiviati</span><div class="chips">${altri.map(chip).join('')}</div>` : ''}`;
+  } else if (nome === 'Divisa') {
+    const n = f.diviso_tra || 1, molti = n >= 5;
+    if ($('#lblImporto')) $('#lblImporto').textContent = n > 1 ? 'Totale in euro' : 'Importo in euro';
+    el.innerHTML = `<span class="label">Diviso tra</span>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;" role="group" aria-label="Diviso tra quante persone">
+${[1, 2, 3, 4].map(k => `<button type="button" class="chip${n === k ? ' on' : ''}" aria-pressed="${n === k}" data-azione="dividi" data-v="${k}" style="min-width:48px;justify-content:center;">${k}</button>`).join('')}
+<button type="button" class="chip${molti ? ' on' : ''}" aria-pressed="${molti}" data-azione="dividi" data-v="5" style="min-width:48px;justify-content:center;">5+</button>
+${molti ? `<input id="fParti" class="input num" inputmode="numeric" aria-label="Numero di persone" value="${n}" style="width:76px;min-height:40px;">` : ''}</div>
+${n > 1 ? `<span class="small" id="fQuota">${esc(testoQuota())}</span>` : ''}`;
+    if ($('#fParti')) $('#fParti').addEventListener('input', () => { f.diviso_tra = partiValide($('#fParti').value, f.diviso_tra); aggiornaQuota(); });
   } else if (nome === 'Altro') {
     const rimb = f.rimborsabile === 'DA_RIMBORSARE';
     el.innerHTML = `<button type="button" class="link" data-azione="altro" style="border:0;background:transparent;text-align:left;padding:0;min-height:44px;cursor:pointer;display:flex;align-items:center;gap:6px;">${ic('down', 16, 2)} ${f.altro ? 'Meno dettagli' : 'Altri dettagli: note, rimborsabile, valuta'}</button>
@@ -522,9 +551,12 @@ async function salva(poi) {
   const data = f.dataScelta === 'oggi' ? S.avvio.oggi : f.dataScelta === 'ieri' ? ieriIso() : f.data;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data || '')) { toast('Scegli la data', null, true); return; }
   const impOrig = f.importo_orig === '' ? '' : leggiImporto(f.importo_orig);
-  const payload = { id: f.id, data, importo, tipo: f.tipo, categoria_id: f.categoria_id, progetto_id: f.progetto_id,
+  // spesa divisa: l'importo scritto è il totale; si registra la quota (anche della valuta estera)
+  const parti = partiValide(f.diviso_tra, 1);
+  const quota = parti > 1 ? Math.round(importo / parti * 100) / 100 : importo;
+  const payload = { id: f.id, data, importo: quota, diviso_tra: parti > 1 ? parti : '', importo_totale: parti > 1 ? importo : '', tipo: f.tipo, categoria_id: f.categoria_id, progetto_id: f.progetto_id,
     descrizione: f.descrizione.trim(), note: f.note, rimborsabile: f.rimborsabile, ora: /^\d{2}:\d{2}$/.test(f.ora || '') ? f.ora : '',
-    importo_orig: isFinite(impOrig) ? impOrig : '', valuta_orig: f.valuta_orig, allegato_url: f.allegato_url, fonte: f.fonte };
+    importo_orig: isFinite(impOrig) && impOrig !== '' ? (parti > 1 ? Math.round(impOrig / parti * 100) / 100 : impOrig) : '', valuta_orig: f.valuta_orig, allegato_url: f.allegato_url, fonte: f.fonte };
   // Si torna subito alla schermata precedente: il salvataggio prosegue in background.
   const nuovo = !f.id, copiaForm = Object.assign({}, f, { letti: {}, lettura: null });
   if (nuovo) anteprimaLocale(payload);
@@ -536,7 +568,8 @@ async function salva(poi) {
     S.avvio = r.avvio; indicizza(); datiModificati();
     ridisegna();
     const offline = r.inCoda && navigator.onLine === false ? ' · verrà inviato quando torna la rete' : '';
-    toast((nuovo ? `Salvato: ${payload.descrizione} ${euro(importo)}` : 'Modifiche salvate') + offline,
+    const diviso = parti > 1 ? ` (÷${parti} di ${euro(importo)})` : '';
+    toast((nuovo ? `Salvato: ${payload.descrizione} ${euro(quota)}${diviso}` : 'Modifiche salvate') + offline,
       nuovo ? { etichetta: 'Annulla', fn: () => annullaSalvataggio(r.id) } : null);
   } catch (e) {
     toast('Non salvato: ' + ((e && e.message) || e), { etichetta: 'Riapri', fn: () => { S.form = copiaForm; vai('form'); } }, true);
@@ -723,6 +756,7 @@ document.addEventListener('click', ev => {
   }
   else if (f && a === 'prog') { f.progetto_id = v; renderSezione('Progetto'); }
   else if (f && a === 'altriProg') { f.tuttiProgetti = !f.tuttiProgetti; renderSezione('Progetto'); }
+  else if (f && a === 'dividi') { leggiCampi(); f.diviso_tra = Number(v); renderSezione('Divisa'); if (Number(v) === 5 && $('#fParti')) $('#fParti').focus(); }
   else if (f && a === 'altro') { leggiCampi(); f.altro = !f.altro; renderSezione('Altro'); }
   else if (f && a === 'rimb') { leggiCampi(); f.rimborsabile = f.rimborsabile === 'DA_RIMBORSARE' ? '' : 'DA_RIMBORSARE'; renderSezione('Altro'); }
   else if (f && a === 'sugg') {

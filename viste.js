@@ -625,7 +625,7 @@ ${blocco('Registrare', 'plus', [
   '<b>Scontrino</b>: foto → controlla i campi segnati <i>da verificare</i> → Salva.',
   '<b>Salva</b> è immediato, anche senza rete: la spesa va sul database appena possibile (in <i>Altro</i> compare «modifiche da inviare» finché non è partita).',
   '<b>Rimborso</b> = soldi che ti tornano (riduce la spesa). <b>Entrata</b> = non conta nella spesa.',
-  '<b>Spese condivise</b>: registra solo la tua quota.',
+  '<b>Spese condivise</b>: scrivi il totale e scegli <i>Diviso tra</i> (parti uguali): conta solo la tua quota, il totale resta segnato.',
   '<b>Lavoro anticipato</b>: <i>Da rimborsare</i>; quando rientra → Altro → Rimborsi attesi → Rimborsato.',
 ])}
 ${blocco('Progetti', 'folder', [

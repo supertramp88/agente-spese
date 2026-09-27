@@ -224,12 +224,22 @@ const Locale = {
     const h = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const r = prima && prima._r != null ? prima._r : Date.now();
     const campi = { _h: { stringValue: h }, _r: { integerValue: String(r) } };
-    Fb.cfg.colonneMovimenti.forEach(k => { campi[k] = versoFirestore(o[k], col.includes(k)); });
+    Fb.cfg.colonneMovimenti.forEach(k => {
+      if (CAMPI_FACOLTATIVI.includes(k) && (o[k] === '' || o[k] == null)) return;   // le regole di prima non li conoscono
+      campi[k] = versoFirestore(o[k], col.includes(k));
+    });
     righe[o.id] = Object.assign(daFirestore(campi, col), { _h: h, _r: r });
     Motore.carica(perMotore(this.st)); this.conserva(this.st);
-    Coda.metti({ id: o.id, campi, nuovo: !prima, op: fn, args });
+    Coda.metti({ id: o.id, campi, nuovo: !prima, op: fn, salva: fn === 'salvaMovimento' ? args[0] : undefined });
     this.invia().catch(() => { });   // se non riesce resta in coda: si riprova al ritorno della rete
     return { id: o.id, avvio: Motore.esegui('getAvvio', []), inCoda: true };
+  },
+  /** Una modifica in coda inviata tramite Apps Script invece che direttamente a Firestore. */
+  async viaServer(x) {
+    const eliminato = !!(x.campi.eliminato && x.campi.eliminato.booleanValue);
+    if (x.nuovo && eliminato) return;   // creata e tolta prima dell'invio: niente da fare
+    if (x.salva) await chiamaRete('salvaMovimento', Object.assign({}, x.salva, { id: x.id, nuovo: !!x.nuovo }));
+    if (x.op !== 'salvaMovimento') await chiamaRete(x.op, x.id);
   },
   /** Invia le modifiche in coda; restano in coda (e si riprova) se la rete o Firebase non rispondono. */
   invia() {
@@ -239,8 +249,16 @@ const Locale = {
       try {
         while (Coda.lista.length) {
           const lotto = Coda.lista.slice(0, 100);
-          if (Fb.cfg.scritture) await Fb.scrivi(lotto);
-          else for (const x of lotto) await chiamaRete(x.op, ...(x.op === 'salvaMovimento' && x.nuovo ? [Object.assign({}, x.args[0], { id: '' })] : x.args));
+          if (!Fb.cfg.scritture) for (const x of lotto) await this.viaServer(x);
+          else {
+            try { await Fb.scrivi(lotto); }
+            catch (e) {
+              // Firestore non accetta (per esempio regole non ancora aggiornate per un campo nuovo):
+              // passano da Apps Script, che controlla gli stessi dati e scrive con l'account di servizio
+              if (e.stato !== 403) throw e;
+              for (const x of lotto) await this.viaServer(x);
+            }
+          }
           Coda.togli(lotto);
           Coda.errore = '';
         }
@@ -259,6 +277,9 @@ const Locale = {
   },
 };
 
+// Campi aggiunti dopo le prime regole di Firestore: si scrivono solo se hanno un valore
+const CAMPI_FACOLTATIVI = ['diviso_tra', 'importo_totale'];
+
 // Modifiche ai movimenti non ancora arrivate su Firestore (una per movimento: vale l'ultima), conservate sul dispositivo.
 const Coda = {
   lista: [], errore: '',
@@ -267,7 +288,7 @@ const Coda = {
   contiene(id) { return this.lista.some(x => x.id === id); },
   metti(x) {
     const prima = this.lista.find(y => y.id === x.id);
-    if (prima) x.nuovo = prima.nuovo;
+    if (prima) { x.nuovo = prima.nuovo; if (!x.salva) x.salva = prima.salva; }
     this.lista = this.lista.filter(y => y.id !== x.id).concat(x); this.salva();
   },
   /** Toglie quelle inviate, se nel frattempo non sono state modificate di nuovo. */
@@ -383,7 +404,11 @@ const Fb = {
       this.dimentica();
       if (!(await this.accedi())) throw new Error('Firebase non collegato');
       try { return await this.post(url, corpo, this.cfg.idToken); }
-      catch (e2) { throw new Error(e2.stato === 403 ? 'Firestore non accetta la modifica' : e2.message); }
+      catch (e2) {
+        const err = new Error(e2.stato === 403 ? 'Firestore non accetta la modifica' : e2.message);
+        err.stato = e2.stato;
+        throw err;
+      }
     }
   },
   /** Documenti di una raccolta aggiornati dopo `dopo` (ISO), o tutti. null se Firebase non è collegato. */

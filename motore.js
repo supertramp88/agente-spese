@@ -112,7 +112,8 @@ function salvaMovimento(m) {
     assicuraColonne_('Movimenti');
     datiCambiati_();
     const sh = db_().getSheetByName('Movimenti');
-    const riga = trovaRiga_(sh, m.id);
+    let riga = 0;
+    try { riga = trovaRiga_(sh, m.id); } catch (e) { if (!m.nuovo) throw e; }
     const esistente = riga ? comeOggetti_([SCHEMA.Movimenti, sh.getRange(riga, 1, 1, SCHEMA.Movimenti.length).getValues()[0]])[0] : null;
     const o = costruisciMovimento_(m, esistente, new Date());
     const valori = SCHEMA.Movimenti.map(k => o[k]);
@@ -126,10 +127,13 @@ function salvaMovimento(m) {
 
 /** Il movimento come riga completa (tutte le colonne), da un modulo già validato. Usata anche dall'app (motore.js). */
 function costruisciMovimento_(m, esistente, adesso) {
+  // spesa divisa in parti uguali: si registra la quota, si ricordano totale e numero di persone
+  const parti = Number(m.diviso_tra) > 1 ? Math.round(Number(m.diviso_tra)) : 1;
+  const totale = parti > 1 ? arrotonda_(Number(m.importo_totale)) : '';
   return {
     id: m.id || nuovoId_(),
     data: dataDaIso_(m.data),
-    importo: arrotonda_(Number(m.importo)),
+    importo: parti > 1 ? arrotonda_(totale / parti) : arrotonda_(Number(m.importo)),
     tipo: m.tipo,
     categoria_id: m.categoria_id,
     progetto_id: m.progetto_id || '',
@@ -145,6 +149,8 @@ function costruisciMovimento_(m, esistente, adesso) {
     modificato_il: adesso,
     eliminato: false,
     ora: m.ora || '',
+    diviso_tra: parti > 1 ? parti : '',
+    importo_totale: totale,
   };
 }
 
@@ -153,7 +159,8 @@ function movimentoDaSalvare_(m, adesso) {
   const errore = validaMovimento_(m);
   if (errore) throw new Error(errore);
   const esistente = m.id ? movimenti_().find(x => x.id === m.id) : null;
-  if (m.id && !esistente) throw new Error('Movimento non trovato: ' + m.id);
+  // nuovo = creato sull'app (con il suo id) e arrivato qui perché Firestore non l'ha accettato direttamente
+  if (m.id && !esistente && !m.nuovo) throw new Error('Movimento non trovato: ' + m.id);
   return costruisciMovimento_(m, esistente, adesso);
 }
 
@@ -284,6 +291,8 @@ function serializza_(m) {
     progetto_id: m.progetto_id, descrizione: m.descrizione, note: m.note, rimborsabile: m.rimborsabile,
     importo_orig: m.importo_orig === '' ? '' : Number(m.importo_orig), valuta_orig: m.valuta_orig || '',
     allegato_url: m.allegato_url || '', fonte: m.fonte || '', ora: oraMovimento_(m),
+    diviso_tra: Number(m.diviso_tra) > 1 ? Number(m.diviso_tra) : '',
+    importo_totale: Number(m.diviso_tra) > 1 && m.importo_totale !== '' ? Number(m.importo_totale) : '',
   };
 }
 
@@ -313,6 +322,11 @@ function validaMovimento_(m) {
   if (!String(m.descrizione || '').trim()) return 'Inserisci una descrizione.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(m.data || '')) return 'Data non valida.';
   if (m.ora && !/^([01]\d|2[0-3]):[0-5]\d$/.test(m.ora)) return 'Ora non valida.';
+  if (m.diviso_tra !== undefined && m.diviso_tra !== null && m.diviso_tra !== '') {
+    const n = Number(m.diviso_tra);
+    if (!Number.isInteger(n) || n < 1 || n > 20) return 'Numero di persone non valido (da 1 a 20).';
+    if (n > 1 && !(Number(m.importo_totale) > 0)) return 'Totale della spesa divisa non valido.';
+  }
   const cat = tabellaInCache_('Categorie').find(c => c.id === m.categoria_id);
   if (!cat || !cat.parent_id) return 'Scegli una categoria.';
   if (m.progetto_id && !tabella_('Progetti').some(p => p.id === m.progetto_id)) return 'Progetto non trovato.';
