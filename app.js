@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.09.27 · cc266e';
+const APP_VERSIONE = '2026.09.28 · 64f369';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -498,6 +498,11 @@ ${f.tuttiProgetti ? `<span class="small">Chiusi e archiviati</span><div class="c
   } else if (nome === 'Divisa') {
     const n = f.diviso_tra || 1, molti = n >= 5;
     if ($('#lblImporto')) $('#lblImporto').textContent = n > 1 ? 'Totale in euro' : 'Importo in euro';
+    // chiusa finché non serve: "Dividi spesa" la apre; aperta da sola se la spesa è già divisa
+    if (n === 1 && !f.dividiAperto) {
+      el.innerHTML = `<button type="button" class="linkbtn" data-azione="dividi-apri" style="align-self:flex-start;padding-left:0;">${ic('plus', 14, 2.4)} Dividi spesa</button>`;
+      return;
+    }
     el.innerHTML = `<span class="label">Diviso tra</span>
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;" role="group" aria-label="Diviso tra quante persone">
 ${[1, 2, 3, 4].map(k => `<button type="button" class="chip${n === k ? ' on' : ''}" aria-pressed="${n === k}" data-azione="dividi" data-v="${k}" style="min-width:48px;justify-content:center;">${k}</button>`).join('')}
@@ -756,7 +761,8 @@ document.addEventListener('click', ev => {
   }
   else if (f && a === 'prog') { f.progetto_id = v; renderSezione('Progetto'); }
   else if (f && a === 'altriProg') { f.tuttiProgetti = !f.tuttiProgetti; renderSezione('Progetto'); }
-  else if (f && a === 'dividi') { leggiCampi(); f.diviso_tra = Number(v); renderSezione('Divisa'); if (Number(v) === 5 && $('#fParti')) $('#fParti').focus(); }
+  else if (f && a === 'dividi-apri') { leggiCampi(); f.dividiAperto = true; renderSezione('Divisa'); }
+  else if (f && a === 'dividi') { leggiCampi(); f.diviso_tra = Number(v); if (Number(v) === 1) f.dividiAperto = false; renderSezione('Divisa'); if (Number(v) === 5 && $('#fParti')) $('#fParti').focus(); }
   else if (f && a === 'altro') { leggiCampi(); f.altro = !f.altro; renderSezione('Altro'); }
   else if (f && a === 'rimb') { leggiCampi(); f.rimborsabile = f.rimborsabile === 'DA_RIMBORSARE' ? '' : 'DA_RIMBORSARE'; renderSezione('Altro'); }
   else if (f && a === 'sugg') {
