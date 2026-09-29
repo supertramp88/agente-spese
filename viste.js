@@ -374,6 +374,9 @@ ${d.perMacro.length ? categorieProgettoHtml(d) : '<p class="vuoto">Nessuna spesa
 <section class="card" style="gap:4px;"><div class="sechead"><h2 class="h2">Ultimi movimenti</h2>
 <a class="link" href="#" data-azione="prog-movimenti" data-v="${p.id}">Tutti</a></div>
 <div>${d.ultimi.length ? d.ultimi.map(m => rigaMovimento(m, true, true)).join('') : '<p class="vuoto">Nessun movimento</p>'}</div></section>
+<section class="card" style="gap:8px;"><button type="button" class="btn sec" style="min-height:44px;" data-azione="prog-report" data-v="${p.id}">${ic('mail', 18)} Invia report via email</button>
+<span class="small">${!p.data_fine ? 'Con una data di fine, parte anche da solo il giorno dopo.'
+    : p.data_fine < S.avvio.oggi ? `Progetto finito il ${esc(breveGiorno(p.data_fine))}.` : `Parte anche da solo il giorno dopo la fine (${esc(breveGiorno(p.data_fine))}).`}</span></section>
 </main>`;
 }
 /** Barre dell'andamento del progetto (giorni o mesi); "prima"/"dopo" in tinta più chiara. */
@@ -832,6 +835,11 @@ function azioneViste(a, el) {
   if (a === 'alt-rep-salva') {
     const r = S.alt.dati.report;
     eseguiGestione('salvaImpostazioniReport', [{ email: $('#repEmail').value, settimanale: r.settimanale, mensile: r.mensile, annuale: r.annuale }], 'Impostazioni report salvate');
+    return true;
+  }
+  if (a === 'prog-report') {
+    toast('Invio in corso…');
+    unaVolta(() => chiama('inviaReportProgetto', v).then(msg => toast(msg)).catch(errore));
     return true;
   }
   if (a === 'alt-rep-prova') {
