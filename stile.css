@@ -104,6 +104,7 @@ input.hero{font-size:40px}
 select.chip.sel{appearance:none;-webkit-appearance:none;flex-shrink:0;max-width:210px;padding-right:30px;background-image:var(--freccia);background-repeat:no-repeat;background-position:right 10px center;text-overflow:ellipsis}
 select.chip.sel.on{background-image:var(--frecciaOn)}
 select.input{appearance:auto}
+input[type="date"].input{min-width:0;display:block;-webkit-appearance:none;appearance:none;line-height:46px}
 .occupato button,.occupato .btn,.occupato .chip{pointer-events:none}
 .occupato .btn{opacity:.55}
 

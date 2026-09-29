@@ -464,14 +464,22 @@ ${meter}
 <button type="button" class="link" data-azione="prog-modifica" data-v="${p.id}" style="border:0;background:transparent;padding:0;min-height:40px;cursor:pointer;">Modifica</button></div>
 </section>`;
 }
+/** Data facoltativa: finché non c'è, un pulsante "Nessuna · imposta" (su iPhone un campo data vuoto mostra comunque
+ *  la data di oggi e sembrerebbe impostato); impostata, il campo data con la ✕ per toglierla. */
+function dataFacoltativa(id, etichetta, valore, modulo) {
+  return `<div class="field" style="min-width:0;"><label class="label" for="${id}">${etichetta}</label>${valore
+    ? `<div style="display:flex;align-items:center;gap:4px;min-width:0;"><input id="${id}" class="input" type="date" value="${esc(valore)}" style="flex:1 1 auto;min-width:0;">
+<button type="button" class="iconbtn" data-azione="data-togli" data-v="${modulo}" aria-label="Togli la data" style="flex:0 0 auto;">${ic('x', 16, 2.2)}</button></div>`
+    : `<button type="button" id="${id}Vuota" class="input" data-azione="data-imposta" data-v="${modulo}" style="text-align:left;color:var(--tx2);cursor:pointer;">Nessuna · imposta</button>`}</div>`;
+}
 function formProgetto() {
   const f = S.prog.form;
   return `<section class="card"><h2 class="h2">${f.id ? 'Modifica progetto' : 'Nuovo progetto'}</h2>
 <div class="field"><label class="label" for="pNome">Nome</label><input id="pNome" class="input" maxlength="80" value="${esc(f.nome)}" placeholder="Es. Libreria soggiorno"></div>
 <div class="field"><span class="label">Tipo</span><div class="chips">${TIPI_PROG.map(([id, t]) => `<button type="button" class="chip${f.tipo === id ? ' on' : ''}" data-azione="prog-tipo" data-v="${id}">${t}</button>`).join('')}</div></div>
-<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
 <div class="field"><label class="label" for="pInizio">Inizio</label><input id="pInizio" class="input" type="date" value="${esc(f.data_inizio)}"></div>
-<div class="field"><label class="label" for="pFine">Fine (facoltativa)</label><input id="pFine" class="input" type="date" value="${esc(f.data_fine)}"></div></div>
+${dataFacoltativa('pFine', 'Fine (facoltativa)', f.data_fine, 'prog')}</div>
 <div class="field"><label class="label" for="pBudget">Budget complessivo (facoltativo)</label><input id="pBudget" class="input" inputmode="decimal" value="${esc(f.budget_totale === '' ? '' : String(f.budget_totale).replace('.', ','))}" placeholder="Es. 800"></div>
 ${f.id ? `<div class="field"><label class="label" for="pStato">Stato</label><select id="pStato" class="input">${[['ATTIVO', 'Attivo'], ['CHIUSO', 'Chiuso'], ['ARCHIVIATO', 'Archiviato']].map(([v, t]) => `<option value="${v}"${f.stato === v ? ' selected' : ''}>${t}</option>`).join('')}</select></div>` : ''}
 <div style="display:flex;align-items:center;gap:12px;"><span class="grow"><span style="display:block;font-weight:500;">Escludi dai totali personali</span><span class="small">Spese tracciate nel progetto ma fuori da budget e report</span></span>
@@ -689,9 +697,9 @@ function formRicorrente() {
     `<option value="${s.id}"${f.categoria_id === s.id ? ' selected' : ''}>${esc(s.nome)}</option>`).join('')}</optgroup>`).join('')}</select></div>
 <div class="field"><label class="label" for="rProg">Progetto</label><select id="rProg" class="input"><option value="">Nessuno</option>${S.avvio.progetti.filter(p => p.stato === 'ATTIVO' || p.id === f.progetto_id).map(p =>
     `<option value="${p.id}"${f.progetto_id === p.id ? ' selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></div>
-<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;">
 <div class="field"><label class="label" for="rInizio">Dal</label><input id="rInizio" class="input" type="date" value="${esc(f.data_inizio)}"></div>
-<div class="field"><label class="label" for="rFine">Al (facoltativo)</label><input id="rFine" class="input" type="date" value="${esc(f.data_fine)}"></div></div>
+${dataFacoltativa('rFine', 'Al (facoltativo)', f.data_fine, 'ric')}</div>
 ${f.id ? `<div style="display:flex;align-items:center;gap:12px;"><span class="grow" style="font-weight:500;">Attiva</span>
 <button type="button" class="switch${f.attiva ? ' on' : ''}" role="switch" aria-checked="${f.attiva}" aria-label="Ricorrenza attiva" data-azione="ric-attiva"><span></span></button></div>` : ''}
 <div style="display:flex;gap:8px;"><button type="button" class="btn sec" style="min-height:44px;" data-azione="ric-annulla">Annulla</button>
@@ -821,6 +829,14 @@ function azioneViste(a, el) {
   }
   if (a === 'ric-freq') { leggiFormRicorrente(); S.alt.ric.frequenza = v; renderAltro(); return true; }
   if (a === 'ric-attiva') { leggiFormRicorrente(); S.alt.ric.attiva = !S.alt.ric.attiva; renderAltro(); return true; }
+  if (a === 'data-imposta' || a === 'data-togli') {
+    const ric = v === 'ric';
+    if (ric) leggiFormRicorrente(); else leggiFormProgetto();
+    const f = ric ? S.alt.ric : S.prog.form;
+    f.data_fine = a === 'data-togli' ? '' : (f.data_inizio || S.avvio.oggi);
+    if (ric) renderAltro(); else renderProgetti();
+    return true;
+  }
   if (a === 'ric-annulla') { S.alt.ric = null; renderAltro(); return true; }
   if (a === 'ric-salva') {
     leggiFormRicorrente();
@@ -828,7 +844,11 @@ function azioneViste(a, el) {
     const importo = leggiImporto(f.importo);
     if (!(importo > 0)) { toast('Importo non valido', null, true); return true; }
     eseguiGestione('salvaRicorrente', [Object.assign({}, f, { importo, giorno: Number(f.giorno) })], 'Spesa ricorrente salvata')
-      .then(r => { if (r) { S.alt.ric = null; renderAltro(); } });
+      .then(r => {
+        if (r) { S.alt.ric = null; renderAltro(); return; }
+        // non salvata (per esempio "esiste già"): elenco aggiornato dal server, il modulo resta com'è
+        chiama('getGestione').then(d => { S.alt.dati = d; memoSalva('gestione', d); if (S.vista === 'altro') renderAltro(); }).catch(() => { });
+      });
     return true;
   }
   if (a === 'alt-rep') { S.alt.dati.report[v] = !S.alt.dati.report[v]; const email = $('#repEmail').value; renderAltro(); $('#repEmail').value = email; return true; }
