@@ -717,7 +717,7 @@ function leggiFormRicorrente() {
 }
 function eseguiGestione(fn, args, messaggio) { return unaVolta(() => eseguiGestione_(fn, args, messaggio)); }
 async function eseguiGestione_(fn, args, messaggio) {
-  if (messaggio) toast('Salvataggio…');   // il server risponde in qualche secondo: si vede che sta lavorando
+  if (messaggio) toast('Salvataggio…', null, false, 120000);   // resta finché il server non risponde
   try {
     const r = await chiama(fn, ...args);
     datiModificati();
@@ -727,7 +727,13 @@ async function eseguiGestione_(fn, args, messaggio) {
     if (messaggio) toast(messaggio);
     if (!(r && r.categorie)) chiama('getAvvio').then(a => { S.avvio = a; indicizza(); }).catch(() => { });
     return r;
-  } catch (e) { errore(e); }
+  } catch (e) {
+    if (e instanceof ErroreCollegamento || e.daServer) { errore(e); return undefined; }
+    // nessuna conferma (rete o Google): la modifica può essere arrivata lo stesso → dati ricaricati
+    toast('Nessuna conferma dal server: ricarico i dati, controlla se la modifica c’è.', null, true);
+    chiama('getAvvio').then(a => { S.avvio = a; indicizza(); }).catch(() => { });
+    return undefined;
+  }
 }
 
 // ------------------------------------------------------------------ azioni delle viste (chiamato dal gestore click di App)
@@ -847,8 +853,16 @@ function azioneViste(a, el) {
     eseguiGestione('salvaRicorrente', [Object.assign({}, f, { importo, giorno: Number(f.giorno) })], 'Spesa ricorrente salvata')
       .then(r => {
         if (r) { S.alt.ric = null; renderAltro(); return; }
-        // non salvata (per esempio "esiste già"): elenco aggiornato dal server, il modulo resta com'è
-        chiama('getGestione').then(d => { S.alt.dati = d; memoSalva('gestione', d); if (S.vista === 'altro') renderAltro(); }).catch(() => { });
+        // non salvata o senza conferma: elenco aggiornato dal server; se la ricorrenza c'è, il modulo si chiude
+        chiama('getGestione').then(d => {
+          S.alt.dati = d; memoSalva('gestione', d);
+          const nome = String(f.descrizione || '').trim().toLowerCase();
+          if (!f.id && d.ricorrenti.some(x => x.attiva && String(x.descrizione).trim().toLowerCase() === nome)) {
+            S.alt.ric = null;
+            toast(`“${f.descrizione.trim()}” è nell’elenco delle spese ricorrenti.`);
+          }
+          if (S.vista === 'altro') renderAltro();
+        }).catch(() => { });
       });
     return true;
   }

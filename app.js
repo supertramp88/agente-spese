@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.09.29 · 939013';
+const APP_VERSIONE = '2026.09.29 · f659d8';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -189,14 +189,14 @@ function renderNav() {
 }
 
 // ------------------------------------------------------------------ toast
-function toast(testo, azione, errore) {
+function toast(testo, azione, errore, durata) {
   const t = $('#toast');
   clearTimeout(S.toastTimer);
   t.className = 'toast' + (errore ? ' errore' : '');
   t.innerHTML = `<span>${esc(testo)}</span>` + (azione ? `<button type="button" id="toastAzione">${esc(azione.etichetta)}</button>` : '');
   t.hidden = false;
   if (azione) $('#toastAzione').onclick = () => { t.hidden = true; azione.fn(); };
-  S.toastTimer = setTimeout(() => { t.hidden = true; }, errore ? 9000 : 6000);
+  S.toastTimer = setTimeout(() => { t.hidden = true; }, durata || (errore ? 9000 : 6000));
 }
 const errore = e => e instanceof ErroreCollegamento
   ? toast(e.message, { etichetta: 'Collega', fn: () => renderCollega(e.message) }, true)
