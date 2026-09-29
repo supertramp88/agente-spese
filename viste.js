@@ -703,7 +703,8 @@ ${dataFacoltativa('rFine', 'Al (facoltativo)', f.data_fine, 'ric')}</div>
 ${f.id ? `<div style="display:flex;align-items:center;gap:12px;"><span class="grow" style="font-weight:500;">Attiva</span>
 <button type="button" class="switch${f.attiva ? ' on' : ''}" role="switch" aria-checked="${f.attiva}" aria-label="Ricorrenza attiva" data-azione="ric-attiva"><span></span></button></div>` : ''}
 <div style="display:flex;gap:8px;"><button type="button" class="btn sec" style="min-height:44px;" data-azione="ric-annulla">Annulla</button>
-<button type="button" class="btn" style="min-height:44px;" data-azione="ric-salva">Salva</button></div></div>`;
+<button type="button" class="btn" style="min-height:44px;" data-azione="ric-salva">Salva</button></div>
+${f.id ? `<button type="button" class="linkbtn" data-azione="ric-elimina" style="align-self:center;color:var(--ko);">${ic('trash', 14, 2.2)} Elimina spesa ricorrente</button>` : ''}</div>`;
 }
 function leggiFormRicorrente() {
   const f = S.alt.ric, v = id => $(id) ? $(id).value : undefined;
@@ -842,6 +843,12 @@ function azioneViste(a, el) {
     const f = ric ? S.alt.ric : S.prog.form;
     f.data_fine = a === 'data-togli' ? '' : (f.data_inizio || S.avvio.oggi);
     if (ric) renderAltro(); else renderProgetti();
+    return true;
+  }
+  if (a === 'ric-elimina') {
+    const f = S.alt.ric;
+    if (!confirm(`Eliminare “${f.descrizione}”? Le spese che ha già creato restano.`)) return true;
+    eseguiGestione('eliminaRicorrente', [f.id], 'Spesa ricorrente eliminata').then(r => { if (r) { S.alt.ric = null; renderAltro(); } });
     return true;
   }
   if (a === 'ric-annulla') { S.alt.ric = null; renderAltro(); return true; }
