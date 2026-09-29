@@ -717,6 +717,7 @@ function leggiFormRicorrente() {
 }
 function eseguiGestione(fn, args, messaggio) { return unaVolta(() => eseguiGestione_(fn, args, messaggio)); }
 async function eseguiGestione_(fn, args, messaggio) {
+  if (messaggio) toast('Salvataggio…');   // il server risponde in qualche secondo: si vede che sta lavorando
   try {
     const r = await chiama(fn, ...args);
     datiModificati();
