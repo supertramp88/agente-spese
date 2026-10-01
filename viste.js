@@ -655,7 +655,7 @@ ${blocco('Budget', 'chart', [
   '<span class="ok strong">Verde</span> in linea · <span style="color:var(--warn);font-weight:600;">ocra</span> vicino o sopra il ritmo · <span class="ko strong">rosso</span> oltre.',
 ])}
 ${blocco('In automatico', 'check', [
-  '<b>Spese ricorrenti</b> (Starlink, inReach…) create da sole il giorno dovuto.',
+  '<b>Spese ricorrenti</b> (abbonamenti, affitto…) create da sole il giorno dovuto.',
   '<b>Report</b>: venerdì verso le 19:30 · giorno 1 tra le 8 e le 9 · primo lunedì di gennaio (Google sceglie il minuto). Se uno non parte, lo rimanda la mattina dopo alle 6.',
   '<b>Foglio Google</b>: ogni notte alle 6 riceve la copia dei movimenti (è da consultare: le correzioni si fanno dall’app).',
   '<b>Backup</b> del foglio ogni domenica (tiene gli ultimi 12).',

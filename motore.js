@@ -77,7 +77,8 @@ function getMovimenti(anno, mese, testo, filtri) {
     righe = righe.filter(m => m.data.getFullYear() === anno && m.data.getMonth() + 1 === mese);
   }
   if (filtri.categoria) {
-    righe = righe.filter(m => m.categoria_id === filtri.categoria || String(m.categoria_id).startsWith(filtri.categoria + '.'));
+    const macroDi = macroDi_();
+    righe = righe.filter(m => m.categoria_id === filtri.categoria || macroDi(m.categoria_id) === filtri.categoria);
   }
   if (filtri.progetto) righe = righe.filter(m => m.progetto_id === filtri.progetto);
   if (filtri.tipo === 'DA_RIMBORSARE') righe = righe.filter(m => m.rimborsabile === 'DA_RIMBORSARE');
@@ -396,6 +397,14 @@ function tabellaInCache_(nome) {
   return righe;
 }
 
+/** Macro-categoria di una categoria, dal parent_id: una sotto-categoria può essere spostata sotto un'altra
+ *  macro senza cambiare id (es. cibo.ristoranti sotto "uscite"). Restituisce id → id della macro. */
+function macroDi_() {
+  const padri = {};
+  tabellaInCache_('Categorie').forEach(c => { if (c.id) padri[c.id] = c.parent_id || c.id; });
+  return id => padri[id] || String(id).split('.')[0];
+}
+
 function impostazione_(chiave) {
   const riga = tabellaInCache_('Impostazioni').find(r => r.chiave === chiave);
   return riga ? riga.valore : '';
@@ -630,9 +639,10 @@ function statoBudget_(validi, esclusi, anno, mese) {
   const fine = new Date(anno, mese - 1, giorno, 23, 59, 59);
 
   const speseMese = {}, speseAnno = {}, subMese = {}, subAnno = {};
+  const macroDi = macroDi_();
   validi.forEach(m => {
     if (m.data.getFullYear() !== anno || m.data > fine) return;
-    const macro = String(m.categoria_id).split('.')[0];
+    const macro = macroDi(m.categoria_id);
     const v = valoreSpesa_(m, esclusi);
     if (!v) return;
     speseAnno[macro] = (speseAnno[macro] || 0) + v;
@@ -645,7 +655,7 @@ function statoBudget_(validi, esclusi, anno, mese) {
   // dettaglio per sotto-categoria (si apre toccando il nome del budget in Home)
   const nomiCat = Object.fromEntries(tabellaInCache_('Categorie').map(c => [c.id, c.nome]));
   const dettaglio = (idMacro, fonte) => Object.keys(fonte)
-    .filter(id => id === idMacro || id.startsWith(idMacro + '.'))
+    .filter(id => macroDi(id) === idMacro)
     .map(id => ({ id, nome: nomiCat[id] || id, valore: arrotonda_(fonte[id]) }))
     .filter(x => x.valore).sort((a, b) => b.valore - a.valore);
 
@@ -719,11 +729,11 @@ function budgetValidi_(primoDelMese) {
 
 function perCategoria_(lista, esclusi) {
   const nomi = Object.fromEntries(tabellaInCache_('Categorie').map(c => [c.id, c.nome]));
-  const macro = {};
+  const macro = {}, macroDi = macroDi_();
   lista.forEach(m => {
     const v = valoreSpesa_(m, esclusi);
     if (!v) return;
-    const idM = String(m.categoria_id).split('.')[0];
+    const idM = macroDi(m.categoria_id);
     const x = macro[idM] || (macro[idM] = { id: idM, nome: nomi[idM] || idM, valore: 0, subs: {} });
     x.valore += v;
     x.subs[m.categoria_id] = (x.subs[m.categoria_id] || 0) + v;

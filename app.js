@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.10.01 · eb6bee';
+const APP_VERSIONE = '2026.10.01 · 5d37ad';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -124,10 +124,10 @@ const ICONE = {
 function ic(nome, size = 22, sw = 1.8) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[nome] || ICONE.tag}</svg>`;
 }
-const ICONA_MACRO = { cibo: 'fork', casa: 'house', bollette: 'wifi', veicoli: 'moto', viaggi: 'plane', abbigliamento: 'shirt',
+const ICONA_MACRO = { cibo: 'fork', uscite: 'glass', casa: 'house', bollette: 'wifi', veicoli: 'moto', viaggi: 'plane', abbigliamento: 'shirt',
   salute: 'heart', sport: 'run', tempo: 'sun', hobby: 'tool', tech: 'chip', regali: 'gift', tasse: 'tag', lavoro: 'brief', varie: 'more' };
-const ICONA_SUB = { 'cibo.spesa': 'cart', 'cibo.aperitivi': 'glass', 'veicoli.carburante': 'fuel', 'hobby.stampa3d': 'printer' };
-const iconaCat = id => ICONA_SUB[id] || ICONA_MACRO[String(id).split('.')[0]] || 'tag';
+const ICONA_SUB = { 'cibo.spesa': 'cart', 'cibo.ristoranti': 'fork', 'cibo.aperitivi': 'glass', 'veicoli.carburante': 'fuel', 'hobby.stampa3d': 'printer' };
+const iconaCat = id => ICONA_SUB[id] || ICONA_MACRO[(CAT[id] || {}).parent_id || String(id).split('.')[0]] || 'tag';
 
 // ------------------------------------------------------------------ dati di riferimento
 let CAT = {}, PROG = {};
