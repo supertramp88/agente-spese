@@ -243,12 +243,17 @@ function budgetTotale_(primoDelMese) {
 
 /** Le 8 sotto-categorie più usate negli ultimi 180 giorni (completate con quelle di default). */
 function frequenti_(validi) {
+  // scelte dell'utente (Impostazioni): categorie sempre presenti (prima) e mai presenti, id separati da virgola
+  const elenco = chiave => String(impostazione_(chiave) || '').split(',').map(s => s.trim()).filter(Boolean);
+  const fisse = elenco('categorie_rapide_fisse'), nascoste = elenco('categorie_rapide_nascoste');
   const limite = new Date(Date.now() - 180 * 864e5);
   const conta = {};
   validi.filter(m => m.data >= limite && m.tipo === 'SPESA')
     .forEach(m => { conta[m.categoria_id] = (conta[m.categoria_id] || 0) + 1; });
-  const top = Object.keys(conta).sort((a, b) => conta[b] - conta[a]).slice(0, 8);
-  FREQUENTI_DEFAULT.forEach(id => { if (top.length < 8 && !top.includes(id)) top.push(id); });
+  const top = fisse.slice(0, 8);
+  const aggiungi = id => { if (top.length < 8 && !top.includes(id) && !nascoste.includes(id)) top.push(id); };
+  Object.keys(conta).sort((a, b) => conta[b] - conta[a]).forEach(aggiungi);
+  FREQUENTI_DEFAULT.forEach(aggiungi);
   return top;
 }
 
@@ -772,6 +777,7 @@ function db_() {
 function tabella_(nome) { return (D.tabelle[nome] || []).map(r => Object.assign({}, r)); }
 function tabellaInCache_(nome) { return tabella_(nome); }
 function chiaveGemini_() { return D.meta.geminiConfigurato ? 'si' : ''; }
+function impostazione_(chiave) { return ((D.meta || {}).impostazioni || {})[chiave] || ''; }
 
 const FUNZIONI = { getAvvio, getMovimenti, getMese, getAnalisi, getBudget, getProgetti, getProgetto };
 /** Dati ricevuti da getDati: { ver, tabelle: { Nome: { h, r } }, meta }. */

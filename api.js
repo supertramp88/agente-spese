@@ -170,7 +170,8 @@ const Locale = {
         cambiato = true;
       }
     }
-    if (cfg.meta) st.meta = cfg.meta;
+    // impostazioni nuove dal server (per esempio le categorie rapide): anche senza movimenti nuovi si ricalcola
+    if (cfg.meta && JSON.stringify(cfg.meta) !== JSON.stringify(st.meta)) { st.meta = cfg.meta; cambiato = true; }
     if (cambiato) { Motore.carica(perMotore(st)); this.st = st; this.ver = ''; this.conserva(st); }
     return cambiato;
   },
