@@ -601,7 +601,7 @@ ${al.ric && al.ric.id === r.id ? formRicorrente() : ''}`).join('')}
 
 <section class="card"><h2 class="h2">Report via email</h2>
 <div class="field"><label class="label" for="repEmail">Indirizzo</label><input id="repEmail" class="input" type="email" value="${esc(d.report.email)}"></div>
-${[['settimanale', 'Settimanale', 'venerdì 19:30 · da sabato a venerdì'], ['mensile', 'Mensile', 'giorno 1 alle 08:00 · mese precedente'], ['annuale', 'Annuale', 'primo lunedì di gennaio alle 08:00']].map(([k, t, s]) =>
+${[['settimanale', 'Settimanale', 'venerdì verso le 19:30 · da sabato a venerdì'], ['mensile', 'Mensile', 'giorno 1 tra le 8 e le 9 · mese precedente'], ['annuale', 'Annuale', 'primo lunedì di gennaio tra le 8 e le 9']].map(([k, t, s]) =>
     `<div style="display:flex;align-items:center;gap:12px;"><span class="grow"><span style="display:block;font-weight:500;">${t}</span><span class="small">${s}</span></span>
 <button type="button" class="switch${d.report[k] ? ' on' : ''}" role="switch" aria-checked="${d.report[k]}" aria-label="Report ${t.toLowerCase()}" data-azione="alt-rep" data-v="${k}"><span></span></button></div>`).join('')}
 <div style="display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn" style="min-height:44px;" data-azione="alt-rep-salva">Salva</button>
@@ -656,7 +656,7 @@ ${blocco('Budget', 'chart', [
 ])}
 ${blocco('In automatico', 'check', [
   '<b>Spese ricorrenti</b> (Starlink, inReach…) create da sole il giorno dovuto.',
-  '<b>Report</b>: venerdì ~19:30 · giorno 1 alle 8 · primo lunedì di gennaio.',
+  '<b>Report</b>: venerdì verso le 19:30 · giorno 1 tra le 8 e le 9 · primo lunedì di gennaio (Google sceglie il minuto). Se uno non parte, lo rimanda la mattina dopo alle 6.',
   '<b>Foglio Google</b>: ogni notte alle 6 riceve la copia dei movimenti (è da consultare: le correzioni si fanno dall’app).',
   '<b>Backup</b> del foglio ogni domenica (tiene gli ultimi 12).',
 ])}
