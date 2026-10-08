@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.10.01 · 5d37ad';
+const APP_VERSIONE = '2026.10.08 · 70c468';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -409,7 +409,8 @@ ${f.id ? `<button class="iconbtn" data-azione="elimina" aria-label="Elimina movi
 </header>
 <main class="scroll" id="formScroll" style="gap:18px;">
 <div id="sezLettura"></div>
-<div class="seg" role="group" aria-label="Tipo di movimento" id="sezTipo"></div>
+<div style="display:flex;flex-direction:column;gap:8px;"><div class="seg" role="group" aria-label="Tipo di movimento" id="sezTipo"></div>
+<p class="nota" id="sezTipoNota" aria-live="polite"></p></div>
 <div class="field">
 <div class="sechead"><label class="label" for="fImporto" id="lblImporto">${(f.diviso_tra || 1) > 1 ? 'Totale in euro' : 'Importo in euro'}</label>${pill('importo')}</div>
 <div class="importo-riga${f.letti.importo === 'dubbio' ? ' dubbio' : ''}"><span class="hero" style="color:var(--tx2);">€</span>
@@ -464,6 +465,12 @@ function renderSezione(nome) {
   if (nome === 'Tipo') {
     el.innerHTML = [['SPESA', 'Spesa'], ['RIMBORSO', 'Rimborso'], ['ENTRATA', 'Entrata']].map(([id, t]) =>
       `<button type="button" class="${f.tipo === id ? 'on' : ''}" data-azione="tipo" data-v="${id}" aria-pressed="${f.tipo === id}">${t}</button>`).join('');
+    // un'entrata non riduce le spese: i soldi restituiti per una spesa vanno come Rimborso
+    const nota = $('#sezTipoNota');
+    if (nota) nota.innerHTML = f.tipo === 'ENTRATA'
+      ? `Le entrate non riducono le spese. Sono soldi restituiti per una spesa (es. pedaggi ripagati dal lavoro)? Usa <b>Rimborso</b>: si sottrae dal totale del mese e dal budget della categoria.
+<button type="button" class="linkbtn" data-azione="tipo" data-v="RIMBORSO" style="display:block;padding-left:0;">Usa Rimborso</button>`
+      : f.tipo === 'RIMBORSO' ? 'Si sottrae dal totale del mese e dal budget della categoria: scegli la stessa categoria della spesa rimborsata.' : '';
   } else if (nome === 'Categoria') {
     const frequenti = S.avvio.frequenti.filter(catUsabile);
     const chips = (f.categoria_id && !frequenti.includes(f.categoria_id) ? [f.categoria_id] : []).concat(frequenti);

@@ -77,6 +77,7 @@ a{color:var(--acc)}a:hover{color:var(--accH)}
 .ciambella-posto{flex:0 0 46px;display:flex;justify-content:flex-end}
 .ciambella{display:flex;flex-direction:column;align-items:center;gap:1px}
 .ciambella-budget{font-size:10px;color:var(--tx2);white-space:nowrap}
+#sezTipoNota:empty{display:none}
 .nota{margin:0;padding:10px 12px;border-radius:12px;background:var(--soft);color:var(--tx);font-size:14px;line-height:1.45}
 
 [hidden]{display:none !important}
