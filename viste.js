@@ -553,6 +553,7 @@ function disegnaAltro() {
 <section class="card" style="padding:4px 16px;gap:0;">
 ${voceAltro('budget', 'chart', 'Budget', `${euroTondo(b.totale)}/mese · ${b.righe.length} categorie con budget`)}
 ${voceAltro('progetti', 'folder', 'Progetti', `${(S.avvio.progettiAttivi || []).length} attivi`)}
+${voceAltro('overland', 'car', 'Overland', sottotitoloOverland())}
 ${voceAltro('info', 'info', 'Guida', 'Regole e consigli in breve')}
 <a class="row" href="${esc(S.avvio.dbUrl)}" target="_blank" rel="noopener"><span class="badge">${ic('sheet', 20)}</span>
 <span class="grow"><span style="display:block;font-size:15px;font-weight:500;">Database</span><span class="small">Il foglio Google con tutti i dati</span></span>${ic('right', 18)}</a>
@@ -618,6 +619,141 @@ ${d.automatismi ? `<span class="status ok">${ic('check', 14, 2.4)} Attivi: repor
 </main>`;
   if ($('#altScroll')) $('#altScroll').scrollTop = scroll;
 }
+// ------------------------------------------------------------------ OVERLAND
+// Catalogo dei veicoli in vendita che cerchi: lo riempie ogni mattina la raccolta (GitHub → Overland.gs).
+// Qui si sceglie lo stato di ogni mezzo e si scrivono le note; tutto il resto lo aggiorna il server.
+const OV_STATI = [['NUOVO', 'Nuovo'], ['INTERESSANTE', 'Interessante'], ['CONTATTATO', 'Contattato'],
+  ['TRATTATIVA', 'In trattativa'], ['VISTO', 'Visto di persona'], ['SCARTATO', 'Scartato']];
+const OV_SEGUITI = ['INTERESSANTE', 'CONTATTATO', 'TRATTATIVA', 'VISTO'];
+const OV_SCHEDE = [
+  ['nuovi', 'Nuovi', m => m.online && m.stato === 'NUOVO'],
+  ['seguiti', 'Seguiti', m => OV_SEGUITI.includes(m.stato)],
+  ['tutti', 'Tutti', m => m.online && m.stato !== 'SCARTATO'],
+  ['archivio', 'Archivio', m => m.stato === 'SCARTATO' || (!m.online && !OV_SEGUITI.includes(m.stato))],
+];
+const OV_ORDINI = [['recenti', 'Più recenti'], ['prezzo', 'Prezzo più basso'], ['km', 'Meno km'], ['anno', 'Più giovani']];
+const nomeStatoOv = s => (OV_STATI.find(x => x[0] === s) || [s, s])[1];
+const veicoloBreve = v => String(v || '').replace(/^(Land Rover|Toyota|Nissan|Volkswagen) /, '');
+/** "oggi", "ieri", "9 ott": per l'interno di una frase. */
+const giornoOv = iso => (iso ? breveGiorno(iso).replace(/^(Oggi|Ieri)$/, x => x.toLowerCase()) : '–');
+
+function sottotitoloOverland() {
+  const d = memoDati('overland');
+  if (!d || !d.mezzi) return 'Annunci dei veicoli che cerchi';
+  const n = f => d.mezzi.filter(f).length;
+  return `${n(OV_SCHEDE[0][2])} nuovi · ${n(OV_SCHEDE[1][2])} seguiti`;
+}
+function renderOverland() {
+  if (!S.ov) S.ov = { dati: null, scheda: 'nuovi', veicolo: '', ordine: 'recenti', aperto: '', limite: 40 };
+  const ov = S.ov;
+  if (memoDati('overland')) ov.dati = memoDati('overland');
+  if (!memoFresco('overland')) {
+    recupera('overland', 'getOverland').then(d => {
+      ov.dati = d;
+      const scrive = document.activeElement && document.activeElement.id === 'ovNota';
+      if (S.vista === 'overland' && !scrive) disegnaOverland();
+    }).catch(e => erroreCaricamento(/Funzione sconosciuta/.test(e.message)
+      ? new Error('Il server non ha ancora Overland: va aggiornato (guida docs/08-overland.md).') : e));
+  }
+  if (!ov.dati) { $('#vista').innerHTML = `${intestazione('Overland', 'altro')}${caricamento()}`; return; }
+  disegnaOverland();
+}
+function disegnaOverland() {
+  const ov = S.ov, d = ov.dati;
+  const filtro = (OV_SCHEDE.find(x => x[0] === ov.scheda) || OV_SCHEDE[0])[2];
+  const nella = d.mezzi.filter(filtro);
+  const veicoli = [...new Set(d.mezzi.map(m => m.veicolo))].sort();
+  const elenco = nella.filter(m => !ov.veicolo || m.veicolo === ov.veicolo).sort(ordineOv(ov.ordine));
+  const scroll = $('#ovScroll') ? $('#ovScroll').scrollTop : 0;
+  const aggiornato = d.aggiornato ? new Date(d.aggiornato) : null;
+  const quando = aggiornato ? `${giornoOv(dataIso(aggiornato))} alle ${String(aggiornato.getHours()).padStart(2, '0')}:${String(aggiornato.getMinutes()).padStart(2, '0')}` : 'mai';
+  $('#vista').innerHTML = `${intestazione('Overland', 'altro')}
+<main class="scroll" id="ovScroll">
+<section class="card" style="gap:10px;">
+<div class="seg" role="group" aria-label="Elenco" style="grid-template-columns:repeat(4,minmax(0,1fr));">${OV_SCHEDE.map(([id, t, f]) =>
+    `<button type="button" class="${ov.scheda === id ? 'on' : ''}" aria-pressed="${ov.scheda === id}" style="min-height:48px;line-height:1.2;" data-azione="ov-scheda" data-v="${id}">${t}<span class="num" style="display:block;font-size:12px;font-weight:500;">${d.mezzi.filter(f).length}</span></button>`).join('')}</div>
+<div class="chips">
+<select id="ovVeicolo" class="chip sel${ov.veicolo ? ' on' : ''}" aria-label="Veicolo"><option value="">Tutti i veicoli</option>${veicoli.map(v =>
+    `<option value="${esc(v)}"${ov.veicolo === v ? ' selected' : ''}>${esc(veicoloBreve(v))} (${nella.filter(m => m.veicolo === v).length})</option>`).join('')}</select>
+<select id="ovOrdine" class="chip sel" aria-label="Ordine">${OV_ORDINI.map(([id, t]) => `<option value="${id}"${ov.ordine === id ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+<span class="small">Aggiornato ${esc(quando)} · ${d.mezzi.filter(m => m.online).length} mezzi online. Lo stesso mezzo su più siti è una scheda sola.</span>
+${d.whatsapp ? '' : '<span class="small">WhatsApp non ancora configurato: le novità arrivano via email.</span>'}
+</section>
+<section class="card" style="padding:4px 16px;gap:0;">
+${elenco.length ? elenco.slice(0, ov.limite).map(rigaOverland).join('') : `<p class="small" style="margin:12px 0;">${vuotoOverland(ov.scheda)}</p>`}
+${elenco.length > ov.limite ? `<button type="button" class="linkbtn" style="align-self:center;margin:10px 0;" data-azione="ov-altri">Mostra altri ${Math.min(40, elenco.length - ov.limite)} (di ${elenco.length - ov.limite})</button>` : ''}
+</section>
+</main>`;
+  if ($('#ovScroll')) $('#ovScroll').scrollTop = scroll;
+}
+function ordineOv(ordine) {
+  const n = v => (v === '' || v == null ? null : Number(v));
+  const asc = k => (a, b) => (n(a[k]) == null) - (n(b[k]) == null) || n(a[k]) - n(b[k]);
+  if (ordine === 'prezzo') return asc('prezzo');
+  if (ordine === 'km') return asc('km');
+  if (ordine === 'anno') return (a, b) => (n(b.anno) || 0) - (n(a.anno) || 0);
+  return (a, b) => String(b.primo_visto).localeCompare(String(a.primo_visto)) || String(b.id).localeCompare(String(a.id));
+}
+function vuotoOverland(scheda) {
+  if (scheda === 'nuovi') return 'Nessun mezzo nuovo: quelli che hai già guardato sono in Seguiti, Tutti o Archivio.';
+  if (scheda === 'seguiti') return 'Nessun mezzo seguito. Apri un mezzo e segnalo come Interessante, Contattato…';
+  if (scheda === 'archivio') return 'Archivio vuoto: qui finiscono i mezzi scartati e quelli non più online.';
+  return 'Nessun mezzo online.';
+}
+function rigaOverland(m) {
+  const aperto = S.ov.aperto === m.id;
+  const ribasso = m.prezzo && m.prezzo_iniziale && m.prezzo < m.prezzo_iniziale ? m.prezzo_iniziale - m.prezzo : 0;
+  const pill = [m.serie ? `<span class="pill">${esc(m.serie.replace(/ \(dedotta\)$/, ''))}</span>` : '',
+    m.stato !== 'NUOVO' ? `<span class="pill ai">${esc(nomeStatoOv(m.stato))}</span>` : '',
+    m.filtro !== 'ok' ? `<span class="pill ko">da verificare</span>` : '',
+    m.online ? '' : '<span class="pill">non più online</span>',
+    `<span class="small">${[...new Set(m.annunci.map(a => a.sito))].map(esc).join(' · ')}</span>`].filter(Boolean).join(' ');
+  return `<div style="border-bottom:1px solid var(--line2);">
+<button type="button" class="row" data-azione="ov-apri" data-v="${esc(m.id)}" aria-expanded="${aperto}" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;text-align:left;align-items:flex-start;${m.online ? '' : 'opacity:.6;'}">
+<span class="grow" style="display:flex;flex-direction:column;gap:4px;min-width:0;">
+<span style="font-size:15px;font-weight:500;">${esc(m.titolo)}</span>
+<span class="small">${[m.anno, m.km ? numero(m.km, 0) + ' km' : '', m.luogo, S.ov.veicolo ? '' : veicoloBreve(m.veicolo)].filter(Boolean).map(esc).join(' · ')}</span>
+<span style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${pill}</span></span>
+<span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;">
+<span class="num strong">${m.prezzo ? euroTondo(m.prezzo) : '–'}</span>
+${ribasso ? `<span class="small ok strong num">−${euroTondo(ribasso)}</span>` : ''}</span></button>
+${aperto ? dettaglioOverland(m) : ''}</div>`;
+}
+function dettaglioOverland(m) {
+  const giorno = giornoOv;
+  const storico = (m.prezzi || []).length > 1
+    ? `<span class="small">Prezzo: ${m.prezzi.map(([g, p]) => `${euroTondo(p)} (${esc(giorno(g))})`).join(' → ')}</span>` : '';
+  return `<div class="pannello" style="padding:12px;display:flex;flex-direction:column;gap:10px;margin:0 0 12px;">
+<div class="chips">${m.annunci.map(a => `<a class="chip" href="${esc(a.url)}" target="_blank" rel="noopener"${a.online ? '' : ' style="opacity:.6;"'}>${esc(a.sito)}${a.prezzo ? ' · ' + euroTondo(a.prezzo) : ''}${a.online ? '' : ' · non più online'} ${ic('right', 14, 2)}</a>`).join('')}</div>
+${storico}
+<span class="small">Visto la prima volta ${esc(giorno(m.primo_visto))} · l’ultima ${esc(giorno(m.ultimo_visto))}${m.serie && / \(dedotta\)$/.test(m.serie) ? ' · serie dedotta dall’anno' : ''}</span>
+${m.filtro !== 'ok' && m.motivi ? `<span class="small"><b>Da verificare:</b> ${esc(m.motivi)} (dato mancante nell’annuncio)</span>` : ''}
+<div class="chips" role="group" aria-label="Stato">${OV_STATI.map(([id, t]) =>
+    `<button type="button" class="chip${m.stato === id ? ' on' : ''}" aria-pressed="${m.stato === id}" style="min-height:36px;" data-azione="ov-stato" data-id="${esc(m.id)}" data-v="${id}">${t}</button>`).join('')}</div>
+<div class="field"><label class="label" for="ovNota">Note (trattativa, telefonate, difetti…)</label>
+<textarea id="ovNota" class="input" maxlength="2000" style="min-height:80px;padding:10px 14px;resize:vertical;">${esc(m.note)}</textarea></div>
+<button type="button" class="btn sec" style="min-height:44px;" data-azione="ov-nota" data-id="${esc(m.id)}">Salva nota</button>
+</div>`;
+}
+function salvaMezzoUI(id, modifiche, messaggio) {
+  return unaVolta(async () => {
+    toast('Salvataggio…', null, false, 120000);
+    try {
+      const m = await chiama('salvaMezzo', id, modifiche);
+      const lista = S.ov.dati.mezzi, i = lista.findIndex(x => x.id === id);
+      if (m && i >= 0) lista[i] = m;
+      memoSalva('overland', S.ov.dati);
+      if (S.vista === 'overland') disegnaOverland();
+      toast(messaggio);
+    } catch (e) { errore(e); }
+  });
+}
+document.addEventListener('change', ev => {
+  if (!S.ov || S.vista !== 'overland') return;
+  if (ev.target.id === 'ovVeicolo') { S.ov.veicolo = ev.target.value; S.ov.limite = 40; disegnaOverland(); }
+  if (ev.target.id === 'ovOrdine') { S.ov.ordine = ev.target.value; S.ov.limite = 40; disegnaOverland(); }
+});
+
 // ------------------------------------------------------------------ GUIDA
 /** Regole e consigli d'uso, in breve. */
 function renderInfo() {
@@ -889,5 +1025,18 @@ function azioneViste(a, el) {
     unaVolta(() => chiama('inviaReportProva', v).then(msg => toast(msg)).catch(errore));
     return true;
   }
+  // Overland
+  if (a === 'ov-scheda') { S.ov.scheda = v; S.ov.aperto = ''; S.ov.limite = 40; disegnaOverland(); if ($('#ovScroll')) $('#ovScroll').scrollTop = 0; return true; }
+  if (a === 'ov-apri') { S.ov.aperto = S.ov.aperto === v ? '' : v; disegnaOverland(); return true; }
+  if (a === 'ov-altri') { S.ov.limite += 40; disegnaOverland(); return true; }
+  if (a === 'ov-stato') {
+    const scheda = OV_SCHEDE.find(x => x[0] === S.ov.scheda);
+    const m = S.ov.dati.mezzi.find(x => x.id === el.dataset.id);
+    const resta = !m || !scheda || scheda[2](Object.assign({}, m, { stato: v }));
+    const dove = OV_SCHEDE.find(x => x[2](Object.assign({}, m, { stato: v })));
+    salvaMezzoUI(el.dataset.id, { stato: v }, `${nomeStatoOv(v)}${resta || !dove ? '' : ` · ora è in ${dove[1]}`}`);
+    return true;
+  }
+  if (a === 'ov-nota') { salvaMezzoUI(el.dataset.id, { note: $('#ovNota') ? $('#ovNota').value : '' }, 'Nota salvata'); return true; }
   return false;
 }
