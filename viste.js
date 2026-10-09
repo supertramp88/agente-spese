@@ -625,11 +625,13 @@ ${d.automatismi ? `<span class="status ok">${ic('check', 14, 2.4)} Attivi: repor
 const OV_STATI = [['NUOVO', 'Nuovo'], ['INTERESSANTE', 'Interessante'], ['CONTATTATO', 'Contattato'],
   ['TRATTATIVA', 'In trattativa'], ['VISTO', 'Visto di persona'], ['SCARTATO', 'Scartato']];
 const OV_SEGUITI = ['INTERESSANTE', 'CONTATTATO', 'TRATTATIVA', 'VISTO'];
+// "in ricerca": online e dentro le ricerche (filtro "fuori" = ancora in vendita ma fuori, per esempio fuori fascia di prezzo)
+const inRicercaOv = m => m.online && m.filtro !== 'fuori';
 const OV_SCHEDE = [
-  ['nuovi', 'Nuovi', m => m.online && m.stato === 'NUOVO'],
+  ['nuovi', 'Nuovi', m => inRicercaOv(m) && m.stato === 'NUOVO'],
   ['seguiti', 'Seguiti', m => OV_SEGUITI.includes(m.stato)],
-  ['tutti', 'Tutti', m => m.online && m.stato !== 'SCARTATO'],
-  ['archivio', 'Archivio', m => m.stato === 'SCARTATO' || (!m.online && !OV_SEGUITI.includes(m.stato))],
+  ['tutti', 'Tutti', m => inRicercaOv(m) && m.stato !== 'SCARTATO'],
+  ['archivio', 'Archivio', m => m.stato === 'SCARTATO' || (!inRicercaOv(m) && !OV_SEGUITI.includes(m.stato))],
 ];
 const OV_ORDINI = [['recenti', 'Più recenti'], ['prezzo', 'Prezzo più basso'], ['km', 'Meno km'], ['anno', 'Più giovani']];
 const nomeStatoOv = s => (OV_STATI.find(x => x[0] === s) || [s, s])[1];
@@ -676,7 +678,7 @@ function disegnaOverland() {
 <select id="ovVeicolo" class="chip sel${ov.veicolo ? ' on' : ''}" aria-label="Veicolo"><option value="">Tutti i veicoli</option>${veicoli.map(v =>
     `<option value="${esc(v)}"${ov.veicolo === v ? ' selected' : ''}>${esc(veicoloBreve(v))} (${nella.filter(m => m.veicolo === v).length})</option>`).join('')}</select>
 <select id="ovOrdine" class="chip sel" aria-label="Ordine">${OV_ORDINI.map(([id, t]) => `<option value="${id}"${ov.ordine === id ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
-<span class="small">Aggiornato ${esc(quando)} · ${d.mezzi.filter(m => m.online).length} mezzi online. Lo stesso mezzo su più siti è una scheda sola.</span>
+<span class="small">Aggiornato ${esc(quando)} · ${d.mezzi.filter(inRicercaOv).length} mezzi in linea con le ricerche. Lo stesso mezzo su più siti è una scheda sola.</span>
 ${d.whatsapp ? '' : '<span class="small">WhatsApp non ancora configurato: le novità arrivano via email.</span>'}
 </section>
 <section class="card" style="padding:4px 16px;gap:0;">
@@ -697,7 +699,7 @@ function ordineOv(ordine) {
 function vuotoOverland(scheda) {
   if (scheda === 'nuovi') return 'Nessun mezzo nuovo: quelli che hai già guardato sono in Seguiti, Tutti o Archivio.';
   if (scheda === 'seguiti') return 'Nessun mezzo seguito. Apri un mezzo e segnalo come Interessante, Contattato…';
-  if (scheda === 'archivio') return 'Archivio vuoto: qui finiscono i mezzi scartati e quelli non più online.';
+  if (scheda === 'archivio') return 'Archivio vuoto: qui finiscono i mezzi scartati, quelli non più online e quelli fuori dalle ricerche.';
   return 'Nessun mezzo online.';
 }
 function rigaOverland(m) {
@@ -705,11 +707,12 @@ function rigaOverland(m) {
   const ribasso = m.prezzo && m.prezzo_iniziale && m.prezzo < m.prezzo_iniziale ? m.prezzo_iniziale - m.prezzo : 0;
   const pill = [m.serie ? `<span class="pill">${esc(m.serie.replace(/ \(dedotta\)$/, ''))}</span>` : '',
     m.stato !== 'NUOVO' ? `<span class="pill ai">${esc(nomeStatoOv(m.stato))}</span>` : '',
-    m.filtro !== 'ok' ? `<span class="pill ko">da verificare</span>` : '',
+    m.filtro === 'da verificare' ? `<span class="pill ko">da verificare</span>` : '',
+    m.filtro === 'fuori' && m.online ? '<span class="pill">fuori ricerca</span>' : '',
     m.online ? '' : '<span class="pill">non più online</span>',
     `<span class="small">${[...new Set(m.annunci.map(a => a.sito))].map(esc).join(' · ')}</span>`].filter(Boolean).join(' ');
   return `<div style="border-bottom:1px solid var(--line2);">
-<button type="button" class="row" data-azione="ov-apri" data-v="${esc(m.id)}" aria-expanded="${aperto}" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;text-align:left;align-items:flex-start;${m.online ? '' : 'opacity:.6;'}">
+<button type="button" class="row" data-azione="ov-apri" data-v="${esc(m.id)}" aria-expanded="${aperto}" style="width:100%;border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;text-align:left;align-items:flex-start;${inRicercaOv(m) ? '' : 'opacity:.6;'}">
 <span class="grow" style="display:flex;flex-direction:column;gap:4px;min-width:0;">
 <span style="font-size:15px;font-weight:500;">${esc(m.titolo)}</span>
 <span class="small">${[m.anno, m.km ? numero(m.km, 0) + ' km' : '', m.luogo, S.ov.veicolo ? '' : veicoloBreve(m.veicolo)].filter(Boolean).map(esc).join(' · ')}</span>
@@ -727,7 +730,8 @@ function dettaglioOverland(m) {
 <div class="chips">${m.annunci.map(a => `<a class="chip" href="${esc(a.url)}" target="_blank" rel="noopener"${a.online ? '' : ' style="opacity:.6;"'}>${esc(a.sito)}${a.prezzo ? ' · ' + euroTondo(a.prezzo) : ''}${a.online ? '' : ' · non più online'} ${ic('right', 14, 2)}</a>`).join('')}</div>
 ${storico}
 <span class="small">Visto la prima volta ${esc(giorno(m.primo_visto))} · l’ultima ${esc(giorno(m.ultimo_visto))}${m.serie && / \(dedotta\)$/.test(m.serie) ? ' · serie dedotta dall’anno' : ''}</span>
-${m.filtro !== 'ok' && m.motivi ? `<span class="small"><b>Da verificare:</b> ${esc(m.motivi)} (dato mancante nell’annuncio)</span>` : ''}
+${m.filtro === 'da verificare' && m.motivi ? `<span class="small"><b>Da verificare:</b> ${esc(m.motivi)} (dato mancante nell’annuncio)</span>` : ''}
+${m.filtro === 'fuori' && m.motivi ? `<span class="small"><b>Fuori dalle ricerche:</b> ${esc(m.motivi)}. È ancora in vendita; se rientra torna tra i mezzi in linea.</span>` : ''}
 <div class="chips" role="group" aria-label="Stato">${OV_STATI.map(([id, t]) =>
     `<button type="button" class="chip${m.stato === id ? ' on' : ''}" aria-pressed="${m.stato === id}" style="min-height:36px;" data-azione="ov-stato" data-id="${esc(m.id)}" data-v="${id}">${t}</button>`).join('')}</div>
 <div class="field"><label class="label" for="ovNota">Note (trattativa, telefonate, difetti…)</label>
