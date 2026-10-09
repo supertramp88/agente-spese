@@ -648,10 +648,10 @@ function sottotitoloOverland() {
 function renderOverland() {
   if (!S.ov) S.ov = { dati: null, scheda: 'nuovi', veicolo: '', ordine: 'recenti', aperto: '', limite: 40 };
   const ov = S.ov;
-  if (memoDati('overland')) ov.dati = memoDati('overland');
+  if (memoDati('overland')) ov.dati = CodaOv.applica(memoDati('overland'));
   if (!memoFresco('overland')) {
     recupera('overland', 'getOverland').then(d => {
-      ov.dati = d;
+      ov.dati = CodaOv.applica(d);   // le modifiche non ancora arrivate al server restano visibili
       const scrive = document.activeElement && document.activeElement.id === 'ovNota';
       if (S.vista === 'overland' && !scrive) disegnaOverland();
     }).catch(e => erroreCaricamento(/Funzione sconosciuta/.test(e.message)
@@ -680,6 +680,7 @@ function disegnaOverland() {
 <select id="ovOrdine" class="chip sel" aria-label="Ordine">${OV_ORDINI.map(([id, t]) => `<option value="${id}"${ov.ordine === id ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
 <span class="small">Aggiornato ${esc(quando)} · ${d.mezzi.filter(inRicercaOv).length} mezzi in linea con le ricerche. Lo stesso mezzo su più siti è una scheda sola.</span>
 ${d.whatsapp ? '' : '<span class="small">WhatsApp non ancora configurato: le novità arrivano via email.</span>'}
+${(n => n ? `<span class="small strong" style="color:var(--warn);">${n === 1 ? '1 modifica da inviare' : `${n} modifiche da inviare`}: partono appena il server risponde.</span>` : '')(CodaOv.leggi().length)}
 </section>
 <section class="card" style="padding:4px 16px;gap:0;">
 ${elenco.length ? elenco.slice(0, ov.limite).map(rigaOverland).join('') : `<p class="small" style="margin:12px 0;">${vuotoOverland(ov.scheda)}</p>`}
@@ -739,19 +740,65 @@ ${m.filtro === 'fuori' && m.motivi ? `<span class="small"><b>Fuori dalle ricerch
 <button type="button" class="btn sec" style="min-height:44px;" data-azione="ov-nota" data-id="${esc(m.id)}">Salva nota</button>
 </div>`;
 }
+/** Stato e note si salvano subito sul dispositivo; al server vanno in background, in ordine (coda qui sotto). */
 function salvaMezzoUI(id, modifiche, messaggio) {
-  return unaVolta(async () => {
-    toast('Salvataggio…', null, false, 120000);
-    try {
-      const m = await chiama('salvaMezzo', id, modifiche);
-      const lista = S.ov.dati.mezzi, i = lista.findIndex(x => x.id === id);
-      if (m && i >= 0) lista[i] = m;
-      memoSalva('overland', S.ov.dati);
-      if (S.vista === 'overland') disegnaOverland();
-      toast(messaggio);
-    } catch (e) { errore(e); }
-  });
+  const m = S.ov && S.ov.dati && S.ov.dati.mezzi.find(x => x.id === id);
+  if (!m) return;
+  Object.assign(m, modifiche);
+  if (modifiche.stato !== undefined) m.stato_il = S.avvio.oggi;
+  memoSalva('overland', S.ov.dati);
+  CodaOv.metti(id, modifiche);
+  disegnaOverland();
+  toast(messaggio);
+  CodaOv.invia();
 }
+
+// Coda delle modifiche al catalogo Overland, conservata sul dispositivo (come le spese): se l'invio non riesce
+// (rete, Google lento, app chiusa) resta qui e si riprova alla riapertura, al ritorno della rete e al salvataggio dopo.
+// Se il server la rifiuta (per esempio un mezzo unito a un altro dalla raccolta) si avvisa e si ricarica l'elenco.
+const CODA_OV = 'agente_overland_coda';
+const CodaOv = {
+  inCorso: false,
+  copia: [],   // se il dispositivo non può salvare (spazio esaurito), la coda resta almeno finché l'app è aperta
+  leggi() { try { return JSON.parse(localStorage.getItem(CODA_OV)) || this.copia; } catch (e) { return this.copia; } },
+  scrivi(c) { this.copia = c; try { localStorage.setItem(CODA_OV, JSON.stringify(c)); } catch (e) { /* resta in copia */ } },
+  metti(id, modifiche) {
+    const c = this.leggi(), ultima = c[c.length - 1];
+    // tocchi di fila sullo stesso mezzo: un solo invio con i valori finali (ma mai dentro quello già partito)
+    if (ultima && ultima.id === id && !(this.inCorso && c.length === 1)) Object.assign(ultima.modifiche, modifiche);
+    else c.push({ id, modifiche: Object.assign({}, modifiche) });
+    this.scrivi(c);
+  },
+  applica(d) {
+    if (d && d.mezzi) this.leggi().forEach(x => { const m = d.mezzi.find(y => y.id === x.id); if (m) Object.assign(m, x.modifiche); });
+    return d;
+  },
+  async invia() {
+    if (this.inCorso || !this.leggi().length) return;
+    this.inCorso = true;
+    try {
+      while (this.leggi().length) {
+        const x = this.leggi()[0];
+        try { await chiama('salvaMezzo', x.id, x.modifiche); }
+        catch (e) {
+          if (!e.daServer) return;   // nessuna risposta: resta in coda (rimandare gli stessi valori non fa danni)
+          toast(`Modifica non salvata: ${e.message}`, null, true);
+          if (MEMO.overland) MEMO.overland.t = 0;   // alla prossima apertura l'elenco si ricarica dal server
+        }
+        const resto = this.leggi(); resto.shift(); this.scrivi(resto);
+      }
+    } finally {
+      this.inCorso = false;
+      const scrive = document.activeElement && document.activeElement.id === 'ovNota';
+      if (S.vista === 'overland' && S.ov && S.ov.dati && !scrive) {
+        if (MEMO.overland && !MEMO.overland.t) renderOverland(); else disegnaOverland();
+      }
+    }
+  },
+};
+window.addEventListener('online', () => CodaOv.invia());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') CodaOv.invia(); });
+setTimeout(() => { if (Config.collegato()) CodaOv.invia(); }, 3000);   // modifiche rimaste da una volta precedente
 document.addEventListener('change', ev => {
   if (!S.ov || S.vista !== 'overland') return;
   if (ev.target.id === 'ovVeicolo') { S.ov.veicolo = ev.target.value; S.ov.limite = 40; disegnaOverland(); }
