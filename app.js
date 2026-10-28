@@ -3,7 +3,7 @@
 // ------------------------------------------------------------------ utilità
 const S = { avvio: null, vista: 'home', form: null, mov: null, toastTimer: 0 };
 // Versione pubblicata (data · impronta dei file): la scrive strumenti/pubblica-app.sh
-const APP_VERSIONE = '2026.10.09 · 397cfe';
+const APP_VERSIONE = '2026.10.28 · 70c468';
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 /** Numero all'italiana con il punto delle migliaia sempre (il formato standard it-IT lo omette a 4 cifre: "2426"). */
@@ -120,7 +120,6 @@ const ICONE = {
   printer: '<path d="M6 9V3h12v6M6 18H4v-7h16v7h-2"/><path d="M6 14h12v7H6z"/>',
   sheet: '<path d="M5 3h10l4 4v14H5z"/><path d="M8 11h8M8 15h8M8 19h5"/>',
   folder: '<path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
-  car: '<path d="M3 17V12l2.5-5h9L18 12h2.5l.5 2v3h-2"/><path d="M3 12h15M10 7v5"/><circle cx="7" cy="17.5" r="2"/><circle cx="16.5" cy="17.5" r="2"/><path d="M9 17.5h5.5"/>',
 };
 function ic(nome, size = 22, sw = 1.8) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONE[nome] || ICONE.tag}</svg>`;
@@ -173,13 +172,12 @@ function vai(vista, opzioni) {
   else if (vista === 'altro') renderAltro();
   else if (vista === 'info') renderInfo();
   else if (vista === 'progetto') renderProgetto();
-  else if (vista === 'overland') renderOverland();
   renderNav();
   // cronologia del browser: il tasto "indietro" del telefono torna alla schermata precedente
   if (!history.state || history.state.vista === vista) history.replaceState({ vista }, '');
   else history.pushState({ vista }, '');
 }
-const sezioneNav = () => ['budget', 'progetti', 'info', 'progetto', 'overland'].includes(S.vista) ? 'altro' : S.vista;
+const sezioneNav = () => ['budget', 'progetti', 'info', 'progetto'].includes(S.vista) ? 'altro' : S.vista;
 function renderNav() {
   const nav = $('#nav');
   nav.hidden = S.vista === 'form';
@@ -831,15 +829,12 @@ async function avviaApp() {
       if (v === 'form' && !S.form) v = 'home';
       if (v !== S.vista) { S.vista = v; vaiSenzaStorico(v); }
     });
-    // link "…#overland" (dal messaggio WhatsApp delle novità): si apre il catalogo
-    const apriOverland = location.hash === '#overland';
-    if (apriOverland) history.replaceState(null, '', location.pathname + location.search);
     const salvato = avvioSalvato();
-    if (salvato) { S.avvio = salvato; S.avvio.oggi = dataIso(new Date()); indicizza(); vai('home'); if (apriOverland) vai('overland'); }
+    if (salvato) { S.avvio = salvato; S.avvio.oggi = dataIso(new Date()); indicizza(); vai('home'); }
     try {
       S.avvio = await chiama('getAvvio');
       indicizza();
-      if (salvato) ridisegna(); else { vai('home'); if (apriOverland) vai('overland'); }
+      if (salvato) ridisegna(); else vai('home');
     } catch (e) {
       if (e instanceof ErroreCollegamento) { renderCollega(e.message); return; }
       if (!salvato) throw e;
@@ -910,6 +905,6 @@ function vaiSenzaStorico(v) {
   if (v === 'home') renderHome(); else if (v === 'movimenti') apriMovimenti(); else if (v === 'form') renderForm();
   else if (v === 'analisi') renderAnalisi(); else if (v === 'budget') renderBudget();
   else if (v === 'progetti') renderProgetti(); else if (v === 'info') renderInfo();
-  else if (v === 'progetto' && S.progId) renderProgetto(); else if (v === 'overland') renderOverland(); else renderAltro();
+  else if (v === 'progetto' && S.progId) renderProgetto(); else renderAltro();
   renderNav();
 }

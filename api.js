@@ -89,8 +89,7 @@ async function chiamaUnaVolta(fn, args) {
 // (motore.js: gli stessi conti del server). Si scarica di nuovo solo se sul server qualcosa è cambiato:
 // all'apertura, al ritorno in primo piano e dopo ogni modifica. Finché i dati dopo una modifica non sono
 // arrivati, le schermate aspettano; se non arrivano, si torna a chiedere tutto al server.
-// (salvaMezzo scrive solo il catalogo Overland: i dati delle spese sul dispositivo restano validi)
-const SOLO_LETTURA = /^get|^statoScontrino$|^leggiScontrino$|^salvaScontrino$|^inviaReportProva$|^inviaReportProgetto$|^salvaMezzo$/;
+const SOLO_LETTURA = /^get|^statoScontrino$|^leggiScontrino$|^salvaScontrino$|^inviaReportProva$|^inviaReportProgetto$/;
 const DATI_CHIAVE = 'agente_dati';
 const Locale = {
   ver: '', st: null, affidabile: false, attesa: null, inCorso: null, ancora: false, forzaApps: false,
